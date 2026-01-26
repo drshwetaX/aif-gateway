@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info:
+  title: AIF Gateway
+  version: "1.0"
+servers:
+  - url: https://YOUR_PUBLIC_GATEWAY_HOST
+paths:
+  /api/aif/run:
+    post:
+      operationId: aifRun
+      summary: Run a request through the AIF Gateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, input]
+              properties:
+                agentId:
+                  type: string
+                  example: salesforce-triage
+                input:
+                  type: string
+                  example: hello
+                action:
+                  type: string
+                  example: run
+      responses:
+        "200":
+          description: Approved response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approved: { type: boolean }
+                  auditId: { type: string }
+                  result: { type: string }
+        "400":
+          description: Bad request
+        "403":
+          description: Denied response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approved: { type: boolean }
+                  auditId: { type: string }
+                  reason: { type: string }

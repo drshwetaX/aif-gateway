@@ -1,0 +1,12 @@
+nohup: ignoring input
+
+> aif-gateway@0.1.0 dev
+> next dev --hostname 0.0.0.0 --port 3000
+
+▲ Next.js 16.1.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+✓ Ready in 678ms
+ POST /api/aif/run 200 in 40ms (compile: 27ms, render: 13ms)
