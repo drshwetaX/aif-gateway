@@ -1,56 +1,53 @@
 /**
  * Author: Dr Shweta Shah
  * Date: 2026-01-27
- * Purpose: Register a governed agent (design-time governance).
+ * Purpose: Design-time governance endpoint.
+ * Accepts problem statement, assigns tier & controls, registers agent in ledger registry.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
-import { isExpiredNow } from "../../../lib/demoAuth";
-import { makeId } from "../../../lib/ids";
-import { appendAudit, putAgent } from "../../../lib/demoStore";
-import { hashEmail, redact } from "../../../lib/safeLog";
-import { classifyRisk } from "../../../lib/policy";
+import { computeTier } from "../../../lib/policy/tierEngine";
+import { registerAgent } from "../../../lib/registry/agentRegistry";
+import { hashIdentity } from "../../../lib/safety/hash";
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (isExpiredNow()) return res.status(403).json({ error: "Demo expired" });
 
-  const ownerEmail = String(req.headers["x-demo-user"] || "");
-  const owner_hash = hashEmail(ownerEmail);
+  const user = String(req.headers["x-demo-user"] || "unknown");
+  const owner_hash = hashIdentity(user);
 
-  const { purpose, proposed_targets } = req.body || {};
-  const purposeStr = String(purpose || "Demo agent").slice(0, 200);
+  const { name, problem_statement, override_tier } = req.body || {};
+  if (!problem_statement) return res.status(400).json({ error: "problem_statement required" });
 
-  const targets: string[] = Array.isArray(proposed_targets) ? proposed_targets.map(String) : ["Salesforce"];
-  const allowed_targets = targets.slice(0, 5);
+  const tiering = await computeTier(String(problem_statement), override_tier ? String(override_tier) : undefined);
 
-  // Demo: derive risk tier from purpose/targets (replace later)
-  const risk_tier = classifyRisk(purposeStr, allowed_targets.join(","));
+  // allowed tools from tier (simple demo mapping)
+  const allowed_tools =
+    tiering.finalTier === "A1" || tiering.finalTier === "A2"
+      ? ["read_only"]
+      : ["read_only", "write_via_gateway"];
 
-  const agent_id = makeId("AGENT");
-  const agent = {
-    agent_id,
+  const agent = await registerAgent({
+    name: String(name || "Demo Agent"),
     owner_hash,
-    purpose: purposeStr,
-    risk_tier,
-    allowed_targets,
-    status: "active" as const,
-    created_at: Date.now(),
-  };
-
-  putAgent(agent);
-
-  appendAudit({
-    ts: Date.now(),
-    type: "agent_register",
-    user_hash: owner_hash,
-    data: redact({ agent_id, risk_tier, agent_status: agent.status }),
+    problem_statement: String(problem_statement),
+    tier: tiering.finalTier,
+    controls: tiering.controls,
+    allowed_tools,
+    policy_version: tiering.policy_version,
   });
 
   return res.status(200).json({
-    agent_id,
-    risk_tier,
-    allowed_targets,
+    agent_id: agent.agent_id,
     status: agent.status,
-    controls_required: risk_tier === "high" ? ["HITL"] : risk_tier === "medium" ? ["HOTL"] : ["AUTO"],
+    risk_tier: agent.tier,
+    controls: agent.controls,
+    allowed_tools: agent.allowed_tools,
+    policy_version: agent.policy_version,
+    // helpful to show execs:
+    tiering_explain: {
+      llm_attrs: tiering.attrs,
+      matched_rules: tiering.ruleEval.matched_rule_ids,
+      reasons: tiering.ruleEval.reasons,
+    },
   });
 }
