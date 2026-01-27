@@ -1,48 +1,56 @@
 /**
  * Author: Dr Shweta Shah
- * Date: 2026-01-26
- * Purpose: Register an agent (design-time governance). Creates Sun Life-owned registry record.
+ * Date: 2026-01-27
+ * Purpose: Register a governed agent (design-time governance).
  */
-
 import type { NextApiRequest, NextApiResponse } from "next";
-import { isDemoExpiredNow } from "../../../lib/demoAuth";
-import { hashEmail, redactForAudit } from "../../../lib/safeLog";
-import { Store, makeId } from "../../../lib/store";
+import { isExpiredNow } from "../../../lib/demoAuth";
+import { makeId } from "../../../lib/ids";
+import { appendAudit, putAgent } from "../../../lib/demoStore";
+import { hashEmail, redact } from "../../../lib/safeLog";
+import { classifyRisk } from "../../../lib/policy";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (isDemoExpiredNow()) return res.status(403).json({ error: "Demo expired" });
+  if (isExpiredNow()) return res.status(403).json({ error: "Demo expired" });
 
-  const userEmail = String(req.headers["x-demo-user"] || "");
-  const { client_id, purpose } = req.body || {};
+  const ownerEmail = String(req.headers["x-demo-user"] || "");
+  const owner_hash = hashEmail(ownerEmail);
+
+  const { purpose, proposed_targets } = req.body || {};
+  const purposeStr = String(purpose || "Demo agent").slice(0, 200);
+
+  const targets: string[] = Array.isArray(proposed_targets) ? proposed_targets.map(String) : ["Salesforce"];
+  const allowed_targets = targets.slice(0, 5);
+
+  // Demo: derive risk tier from purpose/targets (replace later)
+  const risk_tier = classifyRisk(purposeStr, allowed_targets.join(","));
 
   const agent_id = makeId("AGENT");
-  const owner_hash = hashEmail(userEmail);
-
-  // Demo defaults: you can expand later
-  const risk_tier: "low" | "medium" | "high" = "medium";
-  const allowed_targets = ["Salesforce", "ServiceNow"];
-  const allowed_actions = ["AddNote", "UpdateStatus", "CreateIncident", "EscalateCase"];
-
-  const record = {
+  const agent = {
     agent_id,
-    client_id: String(client_id || "copilot-studio"),
     owner_hash,
-    purpose: String(purpose || "Demo agent"),
+    purpose: purposeStr,
     risk_tier,
     allowed_targets,
-    allowed_actions,
     status: "active" as const,
     created_at: Date.now(),
   };
 
-  await Store.putAgent(record);
-  await Store.appendAudit({
+  putAgent(agent);
+
+  appendAudit({
     ts: Date.now(),
-    type: "agent.register",
-    user: owner_hash,
-    data: redactForAudit(record),
+    type: "agent_register",
+    user_hash: owner_hash,
+    data: redact({ agent_id, risk_tier, agent_status: agent.status }),
   });
 
-  return res.status(200).json(record);
+  return res.status(200).json({
+    agent_id,
+    risk_tier,
+    allowed_targets,
+    status: agent.status,
+    controls_required: risk_tier === "high" ? ["HITL"] : risk_tier === "medium" ? ["HOTL"] : ["AUTO"],
+  });
 }
