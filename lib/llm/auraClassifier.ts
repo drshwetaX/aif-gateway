@@ -15,6 +15,23 @@ export type AuraAttributes = {
   rationale: string;
   confidence: number;
 };
+export type AuraSignals = {
+  inferred_actions?: string[];
+  data_sensitivity?: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "PII";
+  cross_border?: boolean;
+  rationale?: string;
+  confidence?: number;
+};
+
+export function attributesToSignals(a: AuraAttributes): AuraSignals {
+  return {
+    inferred_actions: a.actions,
+    data_sensitivity: a.dataSensitivity,
+    cross_border: a.crossBorder,
+    rationale: a.rationale,
+    confidence: a.confidence,
+  };
+}
 
 export async function inferAuraAttributes(problemStatement: string): Promise<AuraAttributes> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
