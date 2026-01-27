@@ -16,6 +16,7 @@ const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
 // Public API routes needed for integrations/importers (no session required)
 const PUBLIC_PATHS = [
   "/api/health",
+   "/api/openapi", 
   "/api/openapi.json", // ✅ needed for Foundry OpenAPI tool import
 ];
 
