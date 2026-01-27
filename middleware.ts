@@ -1,30 +1,21 @@
 /**
  * Author: Dr Shweta Shah
- * Date: 2026-01-26
- * Purpose: Require allowlisted login for all routes except /login and auth endpoints.
+ * Date: 2026-01-27
+ * Purpose: Enforce allowlisted access across the demo (public link, private access).
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCookieName, isDemoExpiredNow, verifySession } from "./lib/demoAuth";
+import { getCookieName, isExpiredNow, verifySession } from "./lib/auth/demoAuth";
 
-const PUBLIC_PATHS = new Set([
-  "/login",
-  "/api/auth/login",
-  "/api/health",
-]);
+const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // allow next internals / static assets
-  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
-    return NextResponse.next();
-  }
+  if (pathname.startsWith("/_next") || pathname.includes(".")) return NextResponse.next();
+  if (PUBLIC.has(pathname)) return NextResponse.next();
 
-  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
-
-  // Hard expiry: force everyone to login page
-  if (isDemoExpiredNow()) {
+  if (isExpiredNow()) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("expired", "1");
@@ -41,7 +32,6 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Useful identity propagation: API routes can read x-demo-user
   const res = NextResponse.next();
   res.headers.set("x-demo-user", session.email);
   return res;
