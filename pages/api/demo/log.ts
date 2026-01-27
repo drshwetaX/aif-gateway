@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { cmdUrl } from "./_redis";
+import { cmdUrl } from "../../../lib/redis";
 
 const KEY = "aif:demo:logs";
 
