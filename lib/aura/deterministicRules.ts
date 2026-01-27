@@ -1,12 +1,12 @@
 /**
  * Author: Dr Shweta Shah
  * Date: 2026-01-27
- * Purpose: Deterministic tier evaluation using AURA policy pack rules.
- *          Merge strategy: MAX_TIER (conservative floor) :contentReference[oaicite:5]{index=5}
+ * Purpose: Deterministic tier evaluation using policy pack rules.
+ * Merge strategy: MAX_TIER (conservative floor)
  */
 
 import { loadAuraPolicy } from "./policyLoader";
-import { AuraSignals } from "../llm/auraClassifier";
+import type { AuraSignals } from "../llm/auraClassifier";
 
 type Tier = "A1"|"A2"|"A3"|"A4"|"A5"|"A6";
 
@@ -34,7 +34,6 @@ export function evaluateTierFromRules(input: {
   let tier: Tier = "A1";
   const matched: string[] = [];
 
-  // Rules from your pack :contentReference[oaicite:6]{index=6}
   for (const r of policy.tiering.rules || []) {
     const cond = r.if || {};
     let hit = true;
