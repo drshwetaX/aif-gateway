@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { cmdUrl } from "../../../lib/redis";
+import { getLogs } from "../../../lib/store";
 
 const KEY = "aif:demo:logs";
 
