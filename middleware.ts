@@ -1,47 +1,50 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+/**
+ * Author: Dr Shweta Shah
+ * Date: 2026-01-26
+ * Purpose: Require allowlisted login for all routes except /login and auth endpoints.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { getCookieName, isDemoExpiredNow, verifySession } from "./lib/demoAuth";
+
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/api/auth/login",
+  "/api/health",
+]);
 
 export function middleware(req: NextRequest) {
-  const cookieName = process.env.DEMO_COOKIE_NAME || "aif_demo_auth";
-
   const { pathname } = req.nextUrl;
 
-  // Allow public paths
-  const PUBLIC = [
-    "/login",
-    "/api/auth/login",
-    "/api/auth/logout",
-    "/api/health",
-  ];
-
-  // Always allow Next internals + static files
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/public") ||
-    pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|map)$/)
-  ) {
+  // allow next internals / static assets
+  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
     return NextResponse.next();
   }
 
-  if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return NextResponse.next();
+  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
+
+  // Hard expiry: force everyone to login page
+  if (isDemoExpiredNow()) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("expired", "1");
+    return NextResponse.redirect(url);
   }
 
-  // If no password is configured, don't block (useful for local dev)
-  if (!process.env.DEMO_PASSWORD) {
-    return NextResponse.next();
+  const token = req.cookies.get(getCookieName())?.value || "";
+  const secret = process.env.DEMO_AUTH_SECRET || "";
+  const session = secret ? verifySession(token, secret) : null;
+
+  if (!session) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  const authed = req.cookies.get(cookieName)?.value === "1";
-  if (authed) return NextResponse.next();
-
-  const url = req.nextUrl.clone();
-  url.pathname = "/login";
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
+  // Useful identity propagation: API routes can read x-demo-user
+  const res = NextResponse.next();
+  res.headers.set("x-demo-user", session.email);
+  return res;
 }
 
-export const config = {
-  matcher: ["/:path*"],
-};
+export const config = { matcher: ["/((?!.*\\..*).*)"] };
