@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { multiExec } from "./_redis";
+import { multiExec } from "../../../lib/redis";
 
 const KEY = "aif:demo:logs";
 
