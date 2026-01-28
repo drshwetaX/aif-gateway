@@ -48,6 +48,44 @@ export function updateAgent(id: string, patch: Partial<Agent>): Agent {
   writeAgents(agents);
   return updated;
 }
+// --- Decisions store (minimal) ---
+
+export type Decision = {
+  id: string;
+  status?: string; // "PENDING" | "APPROVED" | "DENIED" | etc.
+  [k: string]: any;
+};
+
+const DECISIONS_PATH = path.join(DATA_DIR, "decisions.json");
+
+function readDecisions(): Record<string, Decision> {
+  ensureDirs();
+  if (!fs.existsSync(DECISIONS_PATH)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(DECISIONS_PATH, "utf8") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeDecisions(obj: Record<string, Decision>) {
+  ensureDirs();
+  fs.writeFileSync(DECISIONS_PATH, JSON.stringify(obj, null, 2), "utf8");
+}
+
+export function getDecision(id: string): Decision | null {
+  const decisions = readDecisions();
+  return decisions[id] ?? null;
+}
+
+export function updateDecision(id: string, patch: Partial<Decision>): Decision {
+  const decisions = readDecisions();
+  const existing: Decision = decisions[id] ?? { id, status: "PENDING" };
+  const updated: Decision = { ...existing, ...patch, id };
+  decisions[id] = updated;
+  writeDecisions(decisions);
+  return updated;
+}
 
 export function appendAudit(event: any) {
   ensureDirs();
