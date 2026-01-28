@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { readAudit } from "@/lib/audit/audit";
+import { Store } from "@/lib/store";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -8,16 +8,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const entries = await readAudit({ limit: 50 });
+    // Try common method names—pick the one that exists in your Store
+    const entries =
+      (await (Store as any).readAudit?.({ limit: 50 })) ??
+      (await (Store as any).listAudit?.({ limit: 50 })) ??
+      (await (Store as any).getAudit?.({ limit: 50 })) ??
+      [];
 
-    return res.status(200).json({
-      logs: entries.map((e) => ({
-        ts: e.ts,
-        decision: e.decision,
-        reason: e.reason,
-        agentId: e.agentId,
-      })),
-    });
+    return res.status(200).json({ logs: entries });
   } catch (err: any) {
     console.error("logs error", err);
     return res.status(500).json({ error: "failed_to_read_logs" });
