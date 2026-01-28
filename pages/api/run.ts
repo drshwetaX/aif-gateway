@@ -1,6 +1,54 @@
 // pages/api/run.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAuraPolicy } from "@/lib/policy/policyServer";
+import { resolveTier, controlsForTier } from "@/lib/policy/policyEngine";
+import { buildIntent } from "@/lib/policy/intent";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+export default async function handler(req, res) {
+  // 1) Build intent
+  const intent = buildIntent(req.body);
+
+  // 2) Resolve tier + controls
+  const tier = resolveTier(intent);
+  const controls = controlsForTier(tier);
+
+  // 3) Enforce
+  if (controls.approvalRequired && !req.body?.approved) {
+    return res.status(403).json({
+      ok: false,
+      error: "approval_required",
+      tier,
+      controls,
+      intent,
+      ts: nowIso(),
+    });
+  }
+
+  if (controls.sandboxOnly && req.body?.env !== "sandbox") {
+    return res.status(403).json({
+      ok: false,
+      error: "sandbox_only",
+      tier,
+      controls,
+      intent,
+      ts: nowIso(),
+    });
+  }
+
+  // 4) Continue with normal execution…
+  // runToolCall(req.body) ...
+  return res.status(200).json({
+    ok: true,
+    tier,
+    controls,
+    intent,
+    ts: nowIso(),
+  });
+}
 
 export default async function handler(req, res) {
   const policy = getAuraPolicy();
