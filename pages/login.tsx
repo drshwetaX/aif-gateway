@@ -41,7 +41,7 @@ export default function LoginPage() {
       }
 
       setLoading(false);
-      router.replace(nextPath);
+      router.replace(nextPath || "/console/registry");
     } catch {
       setErr("Network error");
       setLoading(false);
