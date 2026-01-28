@@ -8,12 +8,19 @@ export type Agent = {
   id: string;
   name?: string;
   status?: string; // "active" | "killed" | etc.
+  createdAt?: string;
+  owner?: string;
+  tier?: string;
+  controls?: any;
+  allowed_tools?: string[];
+  intent?: any;
   [k: string]: any;
 };
 
 export type Decision = {
   id: string;
   status?: string; // "PENDING" | "APPROVED" | "DENIED" | etc.
+  createdAt?: string;
   [k: string]: any;
 };
 
@@ -49,6 +56,10 @@ function safeWriteJson(filePath: string, obj: any) {
   fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 // --- Agents store ---
 function readAgents(): Record<string, Agent> {
   return safeReadJson<Record<string, Agent>>(AGENTS_PATH, {});
@@ -63,13 +74,37 @@ export function getAgent(id: string): Agent | null {
   return agents[id] ?? null;
 }
 
+export function listAgents(): Agent[] {
+  const agents = readAgents();
+  return Object.values(agents);
+}
+
 export function updateAgent(id: string, patch: Partial<Agent>): Agent {
   const agents = readAgents();
-  const existing: Agent = agents[id] ?? { id };
+  const existing: Agent = agents[id] ?? { id, createdAt: nowIso(), status: "active" };
   const updated: Agent = { ...existing, ...patch, id };
   agents[id] = updated;
   writeAgents(agents);
   return updated;
+}
+
+export function killAgent(id: string, reason = "killed"): Agent | null {
+  const agents = readAgents();
+  const existing = agents[id];
+  if (!existing) return null;
+
+  const updated: Agent = { ...existing, status: "killed", killedAt: nowIso(), killReason: reason };
+  agents[id] = updated;
+  writeAgents(agents);
+  return updated;
+}
+
+export function deleteAgent(id: string): boolean {
+  const agents = readAgents();
+  if (!agents[id]) return false;
+  delete agents[id];
+  writeAgents(agents);
+  return true;
 }
 
 // --- Decisions store ---
@@ -88,7 +123,7 @@ export function getDecision(id: string): Decision | null {
 
 export function updateDecision(id: string, patch: Partial<Decision>): Decision {
   const decisions = readDecisions();
-  const existing: Decision = decisions[id] ?? { id, status: "PENDING" };
+  const existing: Decision = decisions[id] ?? { id, status: "PENDING", createdAt: nowIso() };
   const updated: Decision = { ...existing, ...patch, id };
   decisions[id] = updated;
   writeDecisions(decisions);
@@ -99,28 +134,50 @@ export function updateDecision(id: string, patch: Partial<Decision>): Decision {
 export function pushOutbox(msg: any) {
   ensureDirs();
   const line = JSON.stringify({
-    ts: new Date().toISOString(),
+    ts: nowIso(),
     ...msg,
   });
   fs.appendFileSync(OUTBOX_PATH, line + "\n", "utf8");
   return { ok: true };
 }
 
-// --- Audit / Ledger (minimal) ---
+// --- Audit / Ledger (minimal JSONL) ---
 export function appendAudit(event: any) {
   ensureDirs();
   const line = JSON.stringify({
-    ts: new Date().toISOString(),
+    ts: nowIso(),
     ...event,
   });
   fs.appendFileSync(AUDIT_PATH, line + "\n", "utf8");
   return { ok: true };
 }
 
-// Optional helpers (so any callers won’t break)
-export function getLogs(_limit = 200) {
-  // If you want: parse last N lines from AUDIT_PATH. For now keep minimal.
-  return [];
+/**
+ * Return the last N audit entries from the JSONL ledger.
+ * This is very demo-friendly for Foundry and for exec proof.
+ */
+export function getLogs(limit = 200): any[] {
+  ensureDirs();
+  if (!fs.existsSync(AUDIT_PATH)) return [];
+
+  try {
+    const raw = fs.readFileSync(AUDIT_PATH, "utf8");
+    if (!raw) return [];
+    const lines = raw.trim().split("\n");
+    const tail = lines.slice(Math.max(0, lines.length - limit));
+    const parsed = tail
+      .map((l) => {
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    return parsed as any[];
+  } catch {
+    return [];
+  }
 }
 
 export function addLog(evt: any) {
