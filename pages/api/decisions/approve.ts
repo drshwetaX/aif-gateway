@@ -5,8 +5,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDecision, updateDecision } from "@/lib/demoStore";
-import { writeAudit } from "@/lib/audit/audit";
+import { getDecision, updateDecision } from "../../../lib/demoStore";
+import { writeAudit } from "../../../lib/audit/audit";
 
 function nowIso() {
   return new Date().toISOString();
@@ -20,8 +20,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const user = String(req.headers["x-demo-user"] || "unknown");
   const { decision_id, notes } = req.body || {};
-
   const id = String(decision_id || "");
+
   if (!id) return res.status(400).json({ error: "decision_id required" });
 
   const d = getDecision(id);
@@ -40,7 +40,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     endpoint: "/api/decisions/approve",
     decision: "ALLOW",
     reason: "decision_approved",
-    decision_id: id,
+    decision_id: updated.id,
     agentId: updated.agent_id,
     control_mode: updated.control_mode,
     action: updated.action,
