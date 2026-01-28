@@ -20,6 +20,9 @@ const PUBLIC_PATHS = [
   "/api/openapi.json",
   "/api/run",           // ✅ Foundry tool call endpoint must be public (no cookies)
 ];
+export function middleware(req: NextRequest) {
+  return NextResponse.next();
+}
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
