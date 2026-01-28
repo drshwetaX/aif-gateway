@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCookieName, isExpiredNow, verifySession } from "./lib/auth/demoAuth";
+import { getCookieName, isExpiredNow, verifySession } from "./lib/demoAuth";
 
 // Public UI/auth routes (no session required)
 const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
