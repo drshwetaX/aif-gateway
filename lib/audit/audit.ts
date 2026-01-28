@@ -7,6 +7,8 @@ export type AuditEvent = {
   controls: any;
   decision: "ALLOW" | "DENY";
   reason?: string;
+  [k: string]: any;
+
 };
 
 export function writeAudit(event: AuditEvent) {
