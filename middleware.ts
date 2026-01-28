@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCookieName, isExpiredNow, isEmailAllowed, tryDecodeSession } from "./lib/demoAuthEdge";
 
-// ✅ Set true to bypass login (DO NOT leave true in a shared/prod demo)
-const BYPASS_LOGIN = true;
+// Bypass login ONLY in non-production builds
+const BYPASS_LOGIN = process.env.NODE_ENV !== "production";
 
 // Public UI/auth routes (no session required)
 const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
@@ -16,7 +16,7 @@ const PUBLIC_PATHS = [
 ];
 
 export function middleware(req: NextRequest) {
-  // ✅ One-and-only bypass switch
+  // ✅ bypass in dev/preview only (keeps prod protected)
   if (BYPASS_LOGIN) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
@@ -26,7 +26,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Bypass auth for public API paths
+  // ✅ Bypass auth for public API paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
@@ -44,22 +44,22 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Edge-safe session decode
+  // Edge-safe session decode (no crypto verify in middleware)
   const token = req.cookies.get(getCookieName())?.value || "";
   const session = tryDecodeSession(token);
 
-  // Allowlist enforcement
+  // Basic allowlist enforcement
   if (!session || !isEmailAllowed(session.email)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
+  // Success → pass request through and add a helpful header for logs
   const res = NextResponse.next();
   res.headers.set("x-demo-user", session.email);
   return res;
 }
-
 
 export const config = {
   matcher: ["/((?!.*\\..*).*)"],
