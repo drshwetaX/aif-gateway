@@ -1,14 +1,8 @@
-/**
- * Author: Dr Shweta Shah
- * Date: 2026-01-27
- * Purpose: Enforce allowlisted access across the demo (public link, private access).
- * Notes:
- * - OpenAPI spec must be publicly accessible for Microsoft Foundry / Copilot tool import
- *   because the importer fetches the schema server-to-server (no cookies).
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { getCookieName, isExpiredNow, isEmailAllowed, tryDecodeSession } from "./lib/demoAuthEdge";
+
+// ✅ Set true to bypass login (DO NOT leave true in a shared/prod demo)
+const BYPASS_LOGIN = true;
 
 // Public UI/auth routes (no session required)
 const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
@@ -18,13 +12,13 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/openapi",
   "/api/openapi.json",
-  "/api/run",           // ✅ Foundry tool call endpoint must be public (no cookies)
+  "/api/run",
 ];
-export function middleware(req: NextRequest) {
-  return NextResponse.next();
-}
 
 export function middleware(req: NextRequest) {
+  // ✅ One-and-only bypass switch
+  if (BYPASS_LOGIN) return NextResponse.next();
+
   const { pathname } = req.nextUrl;
 
   // Skip Next.js internals + static assets
@@ -32,7 +26,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ✅ Bypass auth for public API paths (must come BEFORE session checks)
+  // Bypass auth for public API paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
@@ -50,24 +44,22 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Edge-safe session decode (no crypto verify in middleware)
+  // Edge-safe session decode
   const token = req.cookies.get(getCookieName())?.value || "";
   const session = tryDecodeSession(token);
 
-  // Basic allowlist enforcement
+  // Allowlist enforcement
   if (!session || !isEmailAllowed(session.email)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Success → pass request through and add a helpful header for logs
   const res = NextResponse.next();
   res.headers.set("x-demo-user", session.email);
   return res;
 }
 
-// Apply middleware to all routes except static files (good default)
 export const config = {
   matcher: ["/((?!.*\\..*).*)"],
 };
