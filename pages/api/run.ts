@@ -19,4 +19,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     echo: { problemStatement }
   });
 }
-export { default } from "./execute";
