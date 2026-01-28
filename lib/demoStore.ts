@@ -3,6 +3,18 @@
 
 import fs from "fs";
 import path from "path";
+// lib/demoStore.ts
+export function getAgent(_id: string) { return null; }
+export function updateAgent(_id: string, _patch: any) { return null; }
+
+export function getDecision(_id: string) { return null; }
+export function updateDecision(_id: string, _patch: any) { return null; }
+
+export function appendAudit(_evt: any) { return true; }
+export function pushOutbox(_msg: any) { return true; }
+
+export function getLogs(_limit = 200) { return []; }
+export function addLog(_evt: any) { return true; }
 
 export type Agent = {
   id: string;
