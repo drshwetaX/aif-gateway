@@ -19,16 +19,28 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      // Read raw text first so we can handle non-JSON (e.g., HTML error pages)
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
       if (!res.ok) {
-        setErr(data?.error || "Login failed");
+        setErr(data?.error || `Login failed (HTTP ${res.status})`);
         setLoading(false);
         return;
       }
 
+      setLoading(false);
       router.replace(nextPath);
     } catch {
       setErr("Network error");
@@ -38,7 +50,15 @@ export default function LoginPage() {
 
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 420, border: "1px solid #e5e5e5", borderRadius: 12, padding: 20 }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          border: "1px solid #e5e5e5",
+          borderRadius: 12,
+          padding: 20,
+        }}
+      >
         <h1 style={{ margin: 0, fontSize: 22 }}>AIF Gateway</h1>
         <p style={{ marginTop: 8, color: "#555" }}>Sign in to access the demo.</p>
 
@@ -49,6 +69,7 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
             autoComplete="email"
+            inputMode="email"
             style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
           />
 
@@ -57,13 +78,14 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Demo password"
+            autoComplete="current-password"
             autoFocus
             style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
           />
 
           <button
             type="submit"
-            disabled={loading || !password || !email}
+            disabled={loading || !password || !email.trim()}
             style={{
               padding: 12,
               borderRadius: 10,
@@ -76,7 +98,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {err && <p style={{ marginTop: 12, color: "#b00020" }}>{err}</p>}
+        {err && <p style={{ marginTop: 12, color: "#b00020", whiteSpace: "pre-wrap" }}>{err}</p>}
       </div>
     </main>
   );
