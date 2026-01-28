@@ -39,6 +39,25 @@ export function parseCsv(envVal?: string): string[] {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
 }
+export function canonicalizeEmail(emailRaw: string): string {
+  const email = (emailRaw || "").trim().toLowerCase();
+  const [localRaw, domainRaw] = email.split("@");
+  if (!localRaw || !domainRaw) return email;
+
+  let local = localRaw;
+  let domain = domainRaw;
+
+  // Normalize googlemail -> gmail
+  if (domain === "googlemail.com") domain = "gmail.com";
+
+  // Gmail canonicalization: ignore dots + ignore +tags
+  if (domain === "gmail.com") {
+    local = local.split("+")[0];
+    local = local.replace(/\./g, "");
+  }
+
+  return `${local}@${domain}`;
+}
 
 export function isDemoExpiredNow(): boolean {
   const expiresAt = process.env.DEMO_EXPIRES_AT;
@@ -49,11 +68,14 @@ export function isDemoExpiredNow(): boolean {
 }
 
 export function isEmailAllowed(emailRaw: string): boolean {
-  const email = (emailRaw || "").trim().toLowerCase();
+  const email = canonicalizeEmail(emailRaw);
   if (!email.includes("@")) return false;
 
-  const allowedEmails = parseCsv(process.env.DEMO_ALLOWED_EMAILS);
+  const allowedEmailsRaw = parseCsv(process.env.DEMO_ALLOWED_EMAILS);
   const allowedDomains = parseCsv(process.env.DEMO_ALLOWED_DOMAINS);
+
+  // Canonicalize allowlisted emails too (critical)
+  const allowedEmails = allowedEmailsRaw.map(canonicalizeEmail);
 
   if (allowedEmails.includes(email)) return true;
 
@@ -62,6 +84,7 @@ export function isEmailAllowed(emailRaw: string): boolean {
 
   return false;
 }
+ 
 
 export function signSession(session: Session, secret: string): string {
   const payload = b64url(JSON.stringify(session));
@@ -91,15 +114,18 @@ export function verifySession(token: string, secret: string): Session | null {
 }
 
 export function cookieSerialize(name: string, value: string, maxAgeSec: number) {
+  const isProd = process.env.NODE_ENV === "production";
+
   return [
     `${name}=${value}`,
     `Path=/`,
     `HttpOnly`,
     `SameSite=Lax`,
-    `Secure`,
+    isProd ? `Secure` : ``,
     `Max-Age=${maxAgeSec}`,
-  ].join("; ");
+  ].filter(Boolean).join("; ");
 }
+ 
 // Backwards-compatible names used by some routes:
 export const isExpiredNow = isDemoExpiredNow;
 
@@ -107,5 +133,14 @@ export const isExpiredNow = isDemoExpiredNow;
 
 
 export function clearCookieHeader(name: string) {
-  return `${name}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
+  const isProd = process.env.NODE_ENV === "production";
+  return [
+    `${name}=`,
+    `Path=/`,
+    `HttpOnly`,
+    `SameSite=Lax`,
+    isProd ? `Secure` : ``,
+    `Max-Age=0`,
+  ].filter(Boolean).join("; ");
 }
+
