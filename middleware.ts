@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCookieName, isExpiredNow, isEmailAllowed, tryDecodeSession } from "./lib/demoAuthEdge";
 
 // ✅ Bypass auth only in non-production builds (local dev + preview).
-// Set to `true` if you want to bypass everywhere temporarily (NOT recommended to deploy).
+// Change to `true` ONLY if you intentionally want to bypass everywhere temporarily.
 const BYPASS_LOGIN = process.env.NODE_ENV !== "production";
 
 // Public UI/auth routes (no session required)
@@ -17,7 +17,6 @@ const PUBLIC_PATHS = [
 ];
 
 export function middleware(req: NextRequest) {
-  // ✅ One bypass switch, early return
   if (BYPASS_LOGIN) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
@@ -62,7 +61,6 @@ export function middleware(req: NextRequest) {
   return res;
 }
 
-// Apply middleware to all routes except static files (good default)
 export const config = {
   matcher: ["/((?!.*\\..*).*)"],
 };
