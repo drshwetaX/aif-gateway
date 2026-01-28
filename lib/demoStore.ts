@@ -155,6 +155,20 @@ export function pushOutbox(msg: any) {
   fs.appendFileSync(OUTBOX_PATH, line + "\n", "utf8");
   return { ok: true };
 }
+// --- Compatibility shim for older routes expecting appendAudit ---
+export function appendAudit(event: any) {
+  ensureDirs();
+
+  // normalize ts to ISO string
+  const ts =
+    typeof event?.ts === "string"
+      ? event.ts
+      : new Date().toISOString();
+
+  const line = JSON.stringify({ ts, ...event });
+  fs.appendFileSync(AUDIT_PATH, line + "\n", "utf8");
+  return { ok: true };
+}
 
 // ---------- Audit / Logs ----------
 export function getLogs(limit = 200): any[] {
