@@ -1,0 +1,832 @@
+{
+  "version": "aura_policy_pack_runtime_v2",
+  "generatedAt": "2026-01-22T16:01:23.348560+00:00",
+  "builtFrom": {
+    "sourcePackVersion": "aura_policy_pack_v1_auto_extracted",
+    "sources": [
+      {
+        "file": "Agent Information Fabric AIF 1.1.docx",
+        "paragraphCount": 497,
+        "tableCount": 1
+      },
+      {
+        "file": "AURA artifacts templates v1.1.docx",
+        "paragraphCount": 223,
+        "tableCount": 9
+      },
+      {
+        "file": "Aura Use case v2.2.docx",
+        "paragraphCount": 170,
+        "tableCount": 2
+      },
+      {
+        "file": "Aura_detailed_v1.2 .docx",
+        "paragraphCount": 315,
+        "tableCount": 10
+      },
+      {
+        "file": "Aura_framework_v1.6.docx",
+        "paragraphCount": 428,
+        "tableCount": 12
+      },
+      {
+        "file": "AuraPlaybook_v1.3.docx",
+        "paragraphCount": 554,
+        "tableCount": 51
+      }
+    ]
+  },
+  "tiers": [
+    {
+      "tier": "A1",
+      "autonomyBehavior": "Informational – Passive retrieval of structured data or simple lookups.",
+      "governanceRequirements": "Minimal logging; standard IT change controls.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": false,
+        "rateLimitPerMin": 60,
+        "approvalRequired": false,
+        "auditLevel": "MINIMAL",
+        "sandboxOnly": false,
+        "killSwitchRequired": false
+      }
+    },
+    {
+      "tier": "A2",
+      "autonomyBehavior": "Transactional – Executes predefined tasks (e.g., password resets, invoice routing)",
+      "governanceRequirements": "Basic MCP tagging; human-in-the-loop approval for non-routine actions; periodic CQM checks.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": false,
+        "rateLimitPerMin": 60,
+        "approvalRequired": false,
+        "auditLevel": "STANDARD",
+        "sandboxOnly": false,
+        "killSwitchRequired": false
+      }
+    },
+    {
+      "tier": "A3",
+      "autonomyBehavior": "Conversational – Maintains multi-step dialogues, context retention (e.g., retirement planner)",
+      "governanceRequirements": "MCP snapshots on session start/end; CQM monitoring for bias/toxicity; supervisory (HOTL) oversight.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": true,
+        "rateLimitPerMin": 30,
+        "approvalRequired": false,
+        "auditLevel": "ENHANCED",
+        "sandboxOnly": false,
+        "killSwitchRequired": false
+      }
+    },
+    {
+      "tier": "A4",
+      "autonomyBehavior": "Autonomous – Orchestrates workflows end-to-end, makes decisions, escalates as needed (e.g., policy triage)",
+      "governanceRequirements": "Full MCP logging; continuous CQM drift and hallucination checks; HITL/HOTL overrides; SLA & ROI reporting.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": true,
+        "rateLimitPerMin": 20,
+        "approvalRequired": true,
+        "auditLevel": "STRICT",
+        "sandboxOnly": false,
+        "killSwitchRequired": false
+      }
+    },
+    {
+      "tier": "A5",
+      "autonomyBehavior": "Strategic Adaptive – Dynamically re-plans across domains, self-optimizes sub-agents, emergent coordination",
+      "governanceRequirements": "Flagged “high-impact” under AIDA; full OSFI E-23 model-risk controls; red-teaming; human-above-the-loop supervision.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": true,
+        "rateLimitPerMin": 10,
+        "approvalRequired": true,
+        "auditLevel": "STRICT",
+        "sandboxOnly": false,
+        "killSwitchRequired": true
+      }
+    },
+    {
+      "tier": "A6",
+      "autonomyBehavior": "Transformational – Industry-scale agents with systemic impact, continuous learning, market simulation",
+      "governanceRequirements": "Requires sandbox simulations; governance board review; real-time audit feeds; kill-switches; executive-level oversight.",
+      "defaultControls": {
+        "logging": true,
+        "piiRedaction": true,
+        "humanInLoop": true,
+        "rateLimitPerMin": 5,
+        "approvalRequired": true,
+        "auditLevel": "STRICT",
+        "sandboxOnly": true,
+        "killSwitchRequired": true
+      }
+    }
+  ],
+  "tiering": {
+    "notes": [
+      "Tier selection should be computed from attributes; manual override is an exception workflow with audit trail.",
+      "Rules below are conservative floors; implementation should take the max tier across matching rules."
+    ],
+    "rules": [
+      {
+        "id": "R01",
+        "if": {
+          "actionsAny": [
+            "send_external_email",
+            "transfer_funds",
+            "terminate_access"
+          ]
+        },
+        "thenTier": "A6",
+        "rationale": "Restricted/high-impact actions require the highest governance tier."
+      },
+      {
+        "id": "R02",
+        "if": {
+          "actionsAny": [
+            "create_ticket",
+            "update_record",
+            "send_message",
+            "approve",
+            "execute_workflow"
+          ]
+        },
+        "thenTier": "A4",
+        "rationale": "Write-back or execution actions require higher oversight and approvals."
+      },
+      {
+        "id": "R03",
+        "if": {
+          "actionsOnly": [
+            "summarize_request",
+            "search",
+            "retrieve",
+            "lookup",
+            "classify"
+          ]
+        },
+        "thenTier": "A2",
+        "rationale": "Read-only/retrieval/classification is lower autonomy by default."
+      },
+      {
+        "id": "R04",
+        "if": {
+          "dataSensitivityIn": [
+            "PII"
+          ]
+        },
+        "thenTier": "A5",
+        "rationale": "Use cases involving PII require heightened privacy controls and oversight."
+      },
+      {
+        "id": "R05",
+        "if": {
+          "dataSensitivityIn": [
+            "CONFIDENTIAL"
+          ]
+        },
+        "thenTier": "A4",
+        "rationale": "Confidential data typically requires approvals and stronger governance."
+      },
+      {
+        "id": "R06",
+        "if": {
+          "systemsAny": [
+            "servicenow",
+            "workday",
+            "salesforce",
+            "core_banking",
+            "payments"
+          ]
+        },
+        "thenTier": "A5",
+        "rationale": "High-criticality systems require stricter controls due to business and security impact."
+      },
+      {
+        "id": "R07",
+        "if": {
+          "systemsAny": [
+            "kb",
+            "sharepoint",
+            "confluence",
+            "jira"
+          ]
+        },
+        "thenTier": "A4",
+        "rationale": "Medium-criticality systems generally require standard approvals and monitoring."
+      },
+      {
+        "id": "R08",
+        "if": {
+          "crossBorder": true
+        },
+        "thenTier": "A5",
+        "rationale": "Cross-border data handling triggers compliance escalation and higher tier."
+      }
+    ],
+    "mergeStrategy": "MAX_TIER",
+    "tierOrder": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6"
+    ]
+  },
+  "mappings": {
+    "actions": {
+      "read_actions": [
+        "summarize_request",
+        "search",
+        "retrieve",
+        "lookup",
+        "classify"
+      ],
+      "write_actions": [
+        "create_ticket",
+        "update_record",
+        "send_message",
+        "approve",
+        "execute_workflow"
+      ],
+      "restricted_actions": [
+        "send_external_email",
+        "transfer_funds",
+        "terminate_access"
+      ]
+    },
+    "systems": {
+      "high": [
+        "servicenow",
+        "workday",
+        "salesforce",
+        "core_banking",
+        "payments"
+      ],
+      "medium": [
+        "kb",
+        "sharepoint",
+        "confluence",
+        "jira"
+      ],
+      "low": [
+        "public_web",
+        "static_docs"
+      ]
+    },
+    "dataSensitivityLevels": [
+      "PUBLIC",
+      "INTERNAL",
+      "CONFIDENTIAL",
+      "PII"
+    ]
+  },
+  "privacy": {
+    "piaTriggers": [
+      {
+        "trigger": "Agent uses identifiable user data",
+        "example": "Benefits agent accessing health records",
+        "aura_response": "Auto-escalate to Privacy Officer via scorecard"
+      },
+      {
+        "trigger": "LLM trained on personal/sensitive data",
+        "example": "Training data includes employee chat logs",
+        "aura_response": "Flag for PIA and dataset redaction review"
+      },
+      {
+        "trigger": "Cross-border data handling",
+        "example": "Agent runs inference in US cloud from Canadian input",
+        "aura_response": "Trigger region-aware compliance check"
+      }
+    ],
+    "defaultResponse": "Trigger privacy review workflow and record to audit log."
+  },
+  "gates": {
+    "gate0": {
+      "phases": [
+        {
+          "phase": "Intake",
+          "activity": "Complete Use Case Qualification Worksheet (incl. complexity & variability)",
+          "owner": "Biz SME",
+          "artifact_template": "playbook/templates/use_case_checklist.xlsx"
+        },
+        {
+          "phase": "Data",
+          "activity": "Run Data Completeness Scorecard; block if < 75 %",
+          "owner": "Data Owner",
+          "artifact_template": "playbook/templates/data_completeness.xlsx"
+        },
+        {
+          "phase": "Risk",
+          "activity": "Auto-trigger PIA if Tier ≥ A2 & PII present; capture in PIA Log",
+          "owner": "AI Risk",
+          "artifact_template": "playbook/templates/risk_tiering.xlsx"
+        },
+        {
+          "phase": "Review",
+          "activity": "Gate 0 board scores use case; assign Green/Amber/Red band → sign-off or remediation plan",
+          "owner": "Steering Comm.",
+          "artifact_template": "playbook/templates/\nreadiness_checklist.docx"
+        }
+      ],
+      "scoringCriteria": [
+        {
+          "criterion": "Strategic Fit",
+          "description": "Ties to OKR + sponsor OK",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Process Health",
+          "description": "Steps ≤10; SLAs instrumented",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Variability",
+          "description": "Major changes ≤1/Q",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Data Readiness (CQM)",
+          "description": "Completeness ≥ 75 %",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Risk & Controls",
+          "description": "Level 3 preventive controls",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Human-in-Loop",
+          "description": "Overrides defined; latency ≤ 2 hrs",
+          "score_scale": ""
+        },
+        {
+          "criterion": "Leading Metrics",
+          "description": "KPI defined & captured",
+          "score_scale": ""
+        }
+      ],
+      "requirementsByTier": {
+        "A1": {
+          "requiredArtifacts": [],
+          "gate0Required": false
+        },
+        "A2": {
+          "requiredArtifacts": [
+            "playbook/templates/use_case_checklist.xlsx"
+          ],
+          "gate0Required": true
+        },
+        "A3": {
+          "requiredArtifacts": [
+            "playbook/templates/use_case_checklist.xlsx",
+            "playbook/templates/data_completeness.xlsx",
+            "playbook/templates/risk_tiering.xlsx",
+            "playbook/templates/\nreadiness_checklist.docx"
+          ],
+          "gate0Required": true
+        },
+        "A4": {
+          "requiredArtifacts": [
+            "playbook/templates/use_case_checklist.xlsx",
+            "playbook/templates/data_completeness.xlsx",
+            "playbook/templates/risk_tiering.xlsx",
+            "playbook/templates/\nreadiness_checklist.docx",
+            "privacy/pia_form.docx"
+          ],
+          "gate0Required": true
+        },
+        "A5": {
+          "requiredArtifacts": [
+            "playbook/templates/use_case_checklist.xlsx",
+            "playbook/templates/data_completeness.xlsx",
+            "playbook/templates/risk_tiering.xlsx",
+            "playbook/templates/\nreadiness_checklist.docx",
+            "privacy/pia_form.docx",
+            "security/threat_model.docx"
+          ],
+          "gate0Required": true
+        },
+        "A6": {
+          "requiredArtifacts": [
+            "playbook/templates/use_case_checklist.xlsx",
+            "playbook/templates/data_completeness.xlsx",
+            "playbook/templates/risk_tiering.xlsx",
+            "playbook/templates/\nreadiness_checklist.docx",
+            "privacy/pia_form.docx",
+            "security/threat_model.docx",
+            "risk/exec_signoff.docx"
+          ],
+          "gate0Required": true
+        }
+      }
+    }
+  },
+  "artifacts": {
+    "templatesTables": [
+      {
+        "table_index": 0,
+        "header": [
+          "Field",
+          "Description",
+          "Example"
+        ],
+        "rows": [
+          [
+            "Metric-ID",
+            "Unique slug area.metric",
+            "g4.agent.latency"
+          ],
+          [
+            "Description",
+            "What does the metric tell us?",
+            "\"Average time for agent to finish task\""
+          ],
+          [
+            "Owner (Steward)",
+            "Name / team",
+            "FinOps Lead"
+          ],
+          [
+            "Source System",
+            "Datadog query / API call",
+            "datadog:avg:task.duration{agent:*}"
+          ],
+          [
+            "Target / Threshold",
+            "SLO or control limit",
+            "<= 2 sec"
+          ],
+          [
+            "Aggregation Window",
+            "roll-up period",
+            "1 minute"
+          ],
+          [
+            "Frequency",
+            "push / pull cadence",
+            "realtime stream"
+          ],
+          [
+            "Consumers",
+            "dashboards / alerts",
+            "Control-Tower, Slack #aura-alerts"
+          ],
+          [
+            "Dependencies",
+            "upstream artefacts",
+            "AURA-O3 Memory"
+          ],
+          [
+            "Last Review Date",
+            "yyyy-mm-dd",
+            "🔲"
+          ]
+        ]
+      },
+      {
+        "table_index": 1,
+        "header": [
+          "Section",
+          "Content"
+        ],
+        "rows": [
+          [
+            "Agent Name & Version",
+            "🔲"
+          ],
+          [
+            "Business Owner",
+            "🔲"
+          ],
+          [
+            "Purpose / Outcome",
+            "🔲"
+          ],
+          [
+            "Key KPIs",
+            "latency, error-rate, cost per run"
+          ],
+          [
+            "Risk Tier",
+            "L1 / L2 / L3"
+          ],
+          [
+            "Recent Incidents",
+            "link to RCA tickets"
+          ],
+          [
+            "Improvement Actions",
+            "backlog items / dates"
+          ],
+          [
+            "Quarterly Recommendation",
+            "scale / retrain / retire"
+          ]
+        ]
+      },
+      {
+        "table_index": 2,
+        "header": [
+          "Step",
+          "Action",
+          "System",
+          "RACI"
+        ],
+        "rows": [
+          [
+            "1",
+            "Identify trigger (policy breach / business sunset)",
+            "Control-Tower alert",
+            "Steward (A)"
+          ],
+          [
+            "2",
+            "Disable API credentials",
+            "AWS Secrets Manager",
+            "SRE (C)"
+          ],
+          [
+            "3",
+            "Freeze memory store",
+            "AURA-O3",
+            "Platform Eng (R)"
+          ],
+          [
+            "4",
+            "Export logs",
+            "S3 Glacier",
+            "SecOps (I)"
+          ],
+          [
+            "5",
+            "Notify stakeholders",
+            "Slack / Email",
+            "PMO (A)"
+          ],
+          [
+            "6",
+            "Archive scorecard",
+            "SharePoint",
+            "Governance CoE (R)"
+          ],
+          [
+            "7",
+            "Update asset registry",
+            "CMDB",
+            "Service Manager (R)"
+          ]
+        ]
+      },
+      {
+        "table_index": 3,
+        "header": [
+          "Field",
+          "Description"
+        ],
+        "rows": [
+          [
+            "Summary",
+            "Improve agent X error handling"
+          ],
+          [
+            "Context",
+            "link to incident / metric / review"
+          ],
+          [
+            "Root Cause",
+            "🔲"
+          ],
+          [
+            "Proposed Fix",
+            "🔲"
+          ],
+          [
+            "Effort (t-shirt)",
+            "S / M / L / XL"
+          ],
+          [
+            "Owner",
+            "🔲"
+          ],
+          [
+            "Target Release",
+            "sprint + date"
+          ],
+          [
+            "Acceptance Criteria",
+            "tests / KPI delta"
+          ]
+        ]
+      },
+      {
+        "table_index": 4,
+        "header": [
+          "Checklist Dimension",
+          "Why it matters",
+          "How we measure / score it"
+        ],
+        "rows": [
+          [
+            "Strategic fit",
+            "Stops shiny-object projects that don’t move an OKR, revenue, or risk KPI.",
+            "Trace every proposed outcome to a top-level objective; require a quantified benefit in ≤ 90 days."
+          ],
+          [
+            "Process health",
+            "Automating waste just makes waste faster. We need a clean, stable “happy path.”",
+            "Journey-map & service-blueprint workshop: < 10 steps, clear owners, ≥ 80 % steps instrumented with an SLA."
+          ],
+          [
+            "Variability & change rate",
+            "Highly volatile processes drive constant retraining and re-orchestration, eroding ROI.",
+            "Look-back change log: reject if > 1 major change per quarter."
+          ],
+          [
+            "Data readiness (CQM)",
+            "GenAI agents depend on rich context; bad inputs = hallucinations = rework.",
+            "CQM Silver tier or above (≥ 75 % completeness, provenance tags, risk labels). Block at the orchestration layer if unmet."
+          ],
+          [
+            "Risk & controls",
+            "Any step touching PII, funds-movement, or reg-reporting must meet preventive control level 3.",
+            "Heat-map scoring; red zones require control design beforedevelopment starts."
+          ],
+          [
+            "Human-in-loop points",
+            "Some decisions still need human judgment; clarify where and who.",
+            "RACI table in the Model Context Protocol; verify decision latency ≤ 2 hours."
+          ],
+          [
+            "Value & metrics",
+            "If you can’t measure success, you can’t tune or sunset the agent later.",
+            "Define a leading KPI and log it in the Control-Tower dashboard."
+          ]
+        ]
+      },
+      {
+        "table_index": 5,
+        "header": [
+          "Layer / Asset",
+          "Why it exists",
+          "How it works / How we know it’s healthy"
+        ],
+        "rows": [
+          [
+            "AURA-O2 · Event Bus & Saga Manager",
+            "Guarantees end-to-end consistency when many agents and legacy apps touch the same business object.",
+            "Saga outcome ledger records success / compensating action per hop; alert if ≥ 3 retries or latency > p95."
+          ],
+          [
+            "AURA-O3 · Memory Token",
+            "Keeps shared context small and secure while flowing across hops.",
+            "JWT-style payload (< 2 KB) carries trace-ID, risk-tier, sensitivity, TTL. Reject if token expired or tampered."
+          ],
+          [
+            "AURA-G2 · Cross-App Guardrails (OPA)",
+            "Enforces the same risk policies no matter which app or agent is next in line.",
+            "OPA evaluates every event; denied events logged to AURA-G2 Audit and surfaced on the Control-Tower."
+          ],
+          [
+            "MCP v1.2 · Handoff Contract",
+            "Removes “black-hole” hand-offs; every hop declares the target app, timeout, and fallback agent.",
+            "If timeout_sec breached, Control-Tower sends Slack / PagerDuty to process owner; fallback agent takes over."
+          ]
+        ]
+      },
+      {
+        "table_index": 6,
+        "header": [
+          "Capability",
+          "Why it matters",
+          "Maturity target & control"
+        ],
+        "rows": [
+          [
+            "Context-Enriched Ingestion",
+            "Raw PDFs / e-mails need chunking, vectorisation, and provenance tags, or LLMs hallucinate.",
+            "100 % of docs arrive with source_url, owner, license, risk_label stamped in metadata."
+          ],
+          [
+            "Dual Ontology (Business + Technical)",
+            "Lets agents reason in business terms while systems still see schema.",
+            "Maintain ontology in AURA-D3 Content Mesh; annual taxonomy review with domain SMEs."
+          ],
+          [
+            "Lineage & Observability",
+            "Auditors need to trace any answer back to one or more canonical documents.",
+            "Lineage logged in AURA-G2 Audit; 30-day searchable hot storage, 7-year cold storage."
+          ],
+          [
+            "CQM Silver Tier Gate",
+            "Blocks “garbage-in” at the orchestration layer rather than after the fact.",
+            "≥ 75 % completeness & provenance, zero PII leakage; enforced by OPA policy cqm_silver_only == true."
+          ],
+          [
+            "Security (ABAC)",
+            "Context risk score drives access; e.g., Claims agent shouldn’t read HR contracts.",
+            "Attribute policies stored in AURA-G3 Compliance; weekly drift detection against IAM roles."
+          ]
+        ]
+      },
+      {
+        "table_index": 7,
+        "header": [
+          "Lifecycle Stage",
+          "Why it matters",
+          "Governance trigger / metric"
+        ],
+        "rows": [
+          [
+            "Daily Telemetry (AURA-G4 KPI Dashboard)",
+            "Immediate visibility into cost, latency, error hot-spots.",
+            "Alert if error rate > 1 % or latency p95 > 3 s; auto-scale or throttle."
+          ],
+          [
+            "Quarterly Agent Review",
+            "Prevents “zombie” agents consuming resources or drifting from purpose.",
+            "Compare KPI trend vs baseline; classify as Scale / Sustain / Retrain / Retire."
+          ],
+          [
+            "Progressive Discipline",
+            "Mirrors HR policy so ops teams understand actions.",
+            "3-strike rule logged in AURA-G4 Scorecard; after strike 2, scope limited; strike 3 triggers suspension."
+          ],
+          [
+            "Termination (Kill-Switch)",
+            "Must remove credentials & freeze memory to avoid rogue calls.",
+            "API call POST /kill-switch/{agent_id} disables IAM role, archives logs to G3 Compliance."
+          ],
+          [
+            "Post-Mortem & CI Loop (AURA-P2)",
+            "Feeds lessons back into Gate 0 and design standards.",
+            "Root-cause analysis completed in ≤ 5 days; action items auto-populated in CI Jira board."
+          ]
+        ]
+      },
+      {
+        "table_index": 8,
+        "header": [
+          "Challenge",
+          "Solution",
+          "Traceability artifact"
+        ],
+        "rows": [
+          [
+            "SME Tribal Knowledge",
+            "Conversation-to-Rule pipeline: record SME call → transcribe → rule-mine → SME validates.",
+            "Rule node in AURA-M1 Repository with origin_audio_id, confidence, reviewer stamp."
+          ],
+          [
+            "Mainframe Hard-coding",
+            "Strangler adapters expose COBOL transactions via JSON; rules mirrored into M1 incrementally.",
+            "Adapter code in AURA-M2; adapter ID linked back to rule nodes."
+          ],
+          [
+            "Explainable Decisions",
+            "During inference, agent logs the rule-IDs + input facts in the decision trace.",
+            "Trace stored in AURA-O3 Memory; signed hash in G2 Audit for tamper-proofing."
+          ],
+          [
+            "Versioning & Roll-back",
+            "Semantic versions (PremiumCalc@v2025.07.0) let us restore any historic decision path.",
+            "Version tags auto-created in M1; old vectors kept in cold storage for roll-back testing."
+          ]
+        ]
+      }
+    ],
+    "provenance": {
+      "gate0": {
+        "file": "AuraPlaybook_v1.3.docx",
+        "tables": [
+          0,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "templates": {
+        "file": "AURA artifacts templates v1.1.docx",
+        "table_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      }
+    }
+  }
+}
