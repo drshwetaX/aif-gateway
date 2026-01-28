@@ -39,9 +39,22 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get(getCookieName())?.value || "";
   const session = tryDecodeSession(token);
 
-  if (!session || !isEmailAllowed(session.email)) {
+  // ✅ Require a valid session (login API already enforces allowlist + password)
+  if (!session) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
+    url.searchParams.set("reason", "no_session");
+    return NextResponse.redirect(url);
+  }
+
+  // ✅ Only enforce allowlist at Edge if allowlist env vars are present there
+  const hasEdgeAllowlist =
+    !!process.env.DEMO_ALLOWED_EMAILS || !!process.env.DEMO_ALLOWED_DOMAINS;
+
+  if (hasEdgeAllowlist && !isEmailAllowed(session.email)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("reason", "not_allowlisted");
     return NextResponse.redirect(url);
   }
 
