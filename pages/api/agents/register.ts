@@ -1,12 +1,3 @@
-/**
- * Author: Dr Shweta Shah
- * Date: 2026-01-27
- * Purpose: Design-time governance endpoint.
- * Accepts agent intent metadata (or problem_statement as a fallback),
- * assigns tier & controls using the SAME runtime policy pack as /api/run,
- * registers agent in demo registry + writes audit.
- */
-
 import type { NextApiRequest, NextApiResponse } from "next";
 import { buildIntent } from "@/lib/policy/intent";
 import { resolveTier, controlsForTier, type Tier, type AgentIntent } from "@/lib/policy/policyEngine";
@@ -19,19 +10,12 @@ function nowIso() {
 }
 
 function newAgentId(externalAgentId?: string) {
-  // If Foundry gives you an ID, keep it stable for registry mapping
   if (externalAgentId && String(externalAgentId).trim()) return `foundry_${String(externalAgentId).trim()}`;
   return `agent_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
-/**
- * Optional: if caller only sends a free-text problem_statement,
- * we derive a conservative intent. (Better: send actions/systems explicitly.)
- */
 function intentFromProblemStatement(problem_statement: string): AgentIntent {
   const text = (problem_statement || "").toLowerCase();
-
-  // super conservative defaults
   const intent: AgentIntent = {
     actions: ["retrieve"],
     systems: ["kb"],
@@ -39,7 +23,6 @@ function intentFromProblemStatement(problem_statement: string): AgentIntent {
     crossBorder: false,
   };
 
-  // crude signals (keeps demo moving without LLM)
   if (/\b(update|write|create|submit|change|delete|approve|send)\b/.test(text)) {
     intent.actions = ["update_record"];
     intent.systems = ["salesforce"];
@@ -53,14 +36,9 @@ function intentFromProblemStatement(problem_statement: string): AgentIntent {
   if (/\b(cross[- ]border|international|outside canada|eu|uk|us)\b/.test(text)) {
     intent.crossBorder = true;
   }
-
   return intent;
 }
 
-/**
- * Explain which tiering rules matched (useful for exec demos).
- * Works with your runtime policy pack: policy.tiering.rules[].
- */
 function explainTiering(intent: AgentIntent, finalTier: Tier) {
   const policy = loadAuraPolicy();
   const rules = (policy.tiering?.rules ?? []) as any[];
@@ -94,11 +72,7 @@ function explainTiering(intent: AgentIntent, finalTier: Tier) {
     });
   }
 
-  return {
-    finalTier,
-    matched_rule_ids: matched.map((m) => m.ruleId),
-    matched_rules: matched,
-  };
+  return { finalTier, matched_rule_ids: matched.map((m) => m.ruleId), matched_rules: matched };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -110,44 +84,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = String(req.headers["x-demo-user"] || "unknown");
   const body = req.body || {};
 
-  // Inputs you may get from Foundry/tool callers
   const name = String(body.name || "Demo Agent");
   const externalAgentId = body.externalAgentId ? String(body.externalAgentId) : undefined;
   const overrideTier = body.override_tier ? String(body.override_tier) : undefined;
   const problemStatement = body.problem_statement ? String(body.problem_statement) : "";
 
-  // Prefer explicit intent (actions/systems/...) if provided
   let intent = buildIntent(body);
 
-  // If caller didn't pass actions/systems, derive from problem statement
   if ((!intent.actions || intent.actions.length === 0) && problemStatement) {
     intent = intentFromProblemStatement(problemStatement);
   }
-
-  // Safety: if still empty, default to conservative
   if (!Array.isArray(intent.actions) || intent.actions.length === 0) intent.actions = ["retrieve"];
   if (!Array.isArray(intent.systems) || intent.systems.length === 0) intent.systems = ["kb"];
 
-  // Compute tier/controls from the SAME engine used at runtime
   let tier = resolveTier(intent);
-  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) {
-    tier = overrideTier as Tier;
-  }
+  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) tier = overrideTier as Tier;
   const controls = controlsForTier(tier);
 
-  // Simple demo tool allowlist mapping
-  const allowed_tools =
-    tier === "A1" || tier === "A2" ? ["read_only"] : ["read_only", "write_via_gateway"];
+  const allowed_tools = tier === "A1" || tier === "A2" ? ["read_only"] : ["read_only", "write_via_gateway"];
 
   const agentId = newAgentId(externalAgentId);
 
-  // Register in local demo registry
   const agent = updateAgent(agentId, {
     id: agentId,
     externalAgentId,
     name,
     owner: user,
-    status: "active",
+
+    // ✅ pre-hire record exists even if denied later
+    status: "requested",
+    approved: false,
+
     createdAt: nowIso(),
     problem_statement: problemStatement,
     intent,
@@ -155,29 +122,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     controls,
     allowed_tools,
     policy_version: loadAuraPolicy()?.version ?? "unknown",
+    review: { decision: "PENDING", decidedAt: null },
   });
 
-  // Audit
   writeAudit({
     ts: nowIso(),
     user,
     endpoint: "/api/agents/register",
     decision: "ALLOW",
-    reason: "agent_registered",
+    reason: "agent_gate_evaluated",
     agentId,
     externalAgentId,
     tier,
     controls,
     intent,
+    status: agent.status,
+    approved: agent.approved,
   });
 
-  // Explain (for execs)
   const tiering_explain = explainTiering(intent, tier);
 
   return res.status(200).json({
     ok: true,
     agent_id: agent.id,
     status: agent.status,
+    approved: agent.approved,
     risk_tier: agent.tier,
     controls: agent.controls,
     allowed_tools: agent.allowed_tools,
