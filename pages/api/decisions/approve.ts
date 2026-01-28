@@ -1,36 +1,53 @@
 /**
  * Author: Dr Shweta Shah
  * Date: 2026-01-27
- * Purpose: Approver endpoint (HITL): validates token + marks decision approved.
+ * Purpose: Approve a decision (HITL).
  */
+
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDecision, updateDecision, appendAudit } from "../../../lib/demoStore";
-import { hashEmail, redact } from "../../../lib/safeLog";
+import { getDecision, updateDecision } from "@/lib/demoStore";
+import { writeAudit } from "@/lib/audit/audit";
+
+function nowIso() {
+  return new Date().toISOString();
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  const { decision_id, token } = req.body || {};
-  const did = String(decision_id || "");
-  const tok = String(token || "");
+  const user = String(req.headers["x-demo-user"] || "unknown");
+  const { decision_id, notes } = req.body || {};
 
-  const d = getDecision(did);
+  const id = String(decision_id || "");
+  if (!id) return res.status(400).json({ error: "decision_id required" });
+
+  const d = getDecision(id);
   if (!d) return res.status(404).json({ error: "Decision not found" });
-  if (d.control_mode !== "HITL") return res.status(400).json({ error: "Not a HITL decision" });
-  if (d.status !== "pending") return res.status(400).json({ error: `Decision already ${d.status}` });
 
-  if (!d.approval_token || tok !== d.approval_token) return res.status(403).json({ error: "Invalid token" });
-  if (!d.token_expires_at || Date.now() > d.token_expires_at) return res.status(403).json({ error: "Token expired" });
-
-  // single-use token
-  updateDecision(did, { status: "approved", allowed: true, approval_token: undefined, token_expires_at: undefined });
-
-  appendAudit({
-    ts: Date.now(),
-    type: "hitl_approved",
-    user_hash: hashEmail(String(req.headers["x-demo-user"] || "")),
-    data: redact({ decision_id: did, allowed: true }),
+  const updated = updateDecision(id, {
+    status: "APPROVED",
+    approvedAt: nowIso(),
+    approvedBy: user,
+    approvedNotes: notes ? String(notes) : undefined,
   });
 
-  return res.status(200).json({ ok: true, decision_id: did, status: "approved" });
+  writeAudit({
+    ts: nowIso(),
+    user,
+    endpoint: "/api/decisions/approve",
+    decision: "ALLOW",
+    reason: "decision_approved",
+    decision_id: id,
+    agentId: updated.agent_id,
+    control_mode: updated.control_mode,
+    action: updated.action,
+    target: updated.target,
+    tier: updated.tier,
+    policy_version: updated.policy_version,
+  });
+
+  return res.status(200).json({ ok: true, decision: updated });
 }
