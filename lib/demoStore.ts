@@ -3,18 +3,6 @@
 
 import fs from "fs";
 import path from "path";
-// lib/demoStore.ts
-export function getAgent(_id: string) { return null; }
-export function updateAgent(_id: string, _patch: any) { return null; }
-
-export function getDecision(_id: string) { return null; }
-export function updateDecision(_id: string, _patch: any) { return null; }
-
-export function appendAudit(_evt: any) { return true; }
-export function pushOutbox(_msg: any) { return true; }
-
-export function getLogs(_limit = 200) { return []; }
-export function addLog(_evt: any) { return true; }
 
 export type Agent = {
   id: string;
@@ -23,28 +11,51 @@ export type Agent = {
   [k: string]: any;
 };
 
+export type Decision = {
+  id: string;
+  status?: string; // "PENDING" | "APPROVED" | "DENIED" | etc.
+  [k: string]: any;
+};
+
 const DATA_DIR = process.env.DEMO_DATA_DIR || "./data/demo";
 const AGENTS_PATH = path.join(DATA_DIR, "agents.json");
+const DECISIONS_PATH = path.join(DATA_DIR, "decisions.json");
+const OUTBOX_PATH = path.join(DATA_DIR, "outbox.jsonl");
+
+// Ledger / audit log (JSONL)
 const AUDIT_PATH = process.env.LEDGER_PATH || "./data/ledger/aif_ledger.jsonl";
 
 function ensureDirs() {
   fs.mkdirSync(path.dirname(AGENTS_PATH), { recursive: true });
+  fs.mkdirSync(path.dirname(DECISIONS_PATH), { recursive: true });
+  fs.mkdirSync(path.dirname(OUTBOX_PATH), { recursive: true });
   fs.mkdirSync(path.dirname(AUDIT_PATH), { recursive: true });
 }
 
-function readAgents(): Record<string, Agent> {
+function safeReadJson<T>(filePath: string, fallback: T): T {
   ensureDirs();
-  if (!fs.existsSync(AGENTS_PATH)) return {};
+  if (!fs.existsSync(filePath)) return fallback;
   try {
-    return JSON.parse(fs.readFileSync(AGENTS_PATH, "utf8") || "{}");
+    const raw = fs.readFileSync(filePath, "utf8");
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
-    return {};
+    return fallback;
   }
 }
 
-function writeAgents(obj: Record<string, Agent>) {
+function safeWriteJson(filePath: string, obj: any) {
   ensureDirs();
-  fs.writeFileSync(AGENTS_PATH, JSON.stringify(obj, null, 2), "utf8");
+  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
+}
+
+// --- Agents store ---
+function readAgents(): Record<string, Agent> {
+  return safeReadJson<Record<string, Agent>>(AGENTS_PATH, {});
+}
+
+function writeAgents(obj: Record<string, Agent>) {
+  safeWriteJson(AGENTS_PATH, obj);
 }
 
 export function getAgent(id: string): Agent | null {
@@ -60,29 +71,14 @@ export function updateAgent(id: string, patch: Partial<Agent>): Agent {
   writeAgents(agents);
   return updated;
 }
-// --- Decisions store (minimal) ---
 
-export type Decision = {
-  id: string;
-  status?: string; // "PENDING" | "APPROVED" | "DENIED" | etc.
-  [k: string]: any;
-};
-
-const DECISIONS_PATH = path.join(DATA_DIR, "decisions.json");
-
+// --- Decisions store ---
 function readDecisions(): Record<string, Decision> {
-  ensureDirs();
-  if (!fs.existsSync(DECISIONS_PATH)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(DECISIONS_PATH, "utf8") || "{}");
-  } catch {
-    return {};
-  }
+  return safeReadJson<Record<string, Decision>>(DECISIONS_PATH, {});
 }
 
 function writeDecisions(obj: Record<string, Decision>) {
-  ensureDirs();
-  fs.writeFileSync(DECISIONS_PATH, JSON.stringify(obj, null, 2), "utf8");
+  safeWriteJson(DECISIONS_PATH, obj);
 }
 
 export function getDecision(id: string): Decision | null {
@@ -98,9 +94,8 @@ export function updateDecision(id: string, patch: Partial<Decision>): Decision {
   writeDecisions(decisions);
   return updated;
 }
-// --- Outbox (minimal) ---
-const OUTBOX_PATH = path.join(DATA_DIR, "outbox.jsonl");
 
+// --- Outbox (minimal) ---
 export function pushOutbox(msg: any) {
   ensureDirs();
   const line = JSON.stringify({
@@ -111,6 +106,7 @@ export function pushOutbox(msg: any) {
   return { ok: true };
 }
 
+// --- Audit / Ledger (minimal) ---
 export function appendAudit(event: any) {
   ensureDirs();
   const line = JSON.stringify({
@@ -118,4 +114,15 @@ export function appendAudit(event: any) {
     ...event,
   });
   fs.appendFileSync(AUDIT_PATH, line + "\n", "utf8");
+  return { ok: true };
+}
+
+// Optional helpers (so any callers won’t break)
+export function getLogs(_limit = 200) {
+  // If you want: parse last N lines from AUDIT_PATH. For now keep minimal.
+  return [];
+}
+
+export function addLog(evt: any) {
+  return appendAudit(evt);
 }
