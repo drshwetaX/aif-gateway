@@ -10,6 +10,26 @@ export function hashEmail(email: string) {
   const s = (email || "").toLowerCase().trim();
   return crypto.createHash("sha256").update(s).digest("hex").slice(0, 12);
 }
+// Backwards-compatible alias expected by some demo routes.
+export function redact(input: any) {
+  // If you already have a stronger redactor, call it here.
+  // Keep this simple & safe: remove obvious secrets-ish fields.
+  if (input == null) return input;
+
+  try {
+    const s = typeof input === "string" ? input : JSON.stringify(input);
+
+    // lightweight redaction patterns
+    return s
+      .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
+      .replace(/sk-[A-Za-z0-9]{10,}/g, "sk-[REDACTED]")
+      .replace(/"apiKey"\s*:\s*"[^"]+"/gi, `"apiKey":"[REDACTED]"`)
+      .replace(/"password"\s*:\s*"[^"]+"/gi, `"password":"[REDACTED]"`);
+  } catch {
+    return "[REDACTED]";
+  }
+}
+
 
 /**
  * Redact payload: keep only high-level governance metadata for exec demo.
