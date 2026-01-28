@@ -1,64 +1,92 @@
 /**
  * Author: Dr Shweta Shah
  * Date: 2026-01-27
- * Purpose: Demo-safe "email notify": collects approver/reviewer email,
- * generates a link (approve/deny or review), and stores it in an outbox.
- *
- * NOTE: This does NOT send real email (safe for public demo).
+ * Purpose: Notify / enqueue human approval request (demo outbox).
  */
+
 import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { isExpiredNow, isEmailAllowed } from "../../../lib/demoAuth";
-import { getDecision, pushOutbox, updateDecision, appendAudit } from "../../../lib/demoStore";
-import { hashEmail, redact } from "../../../lib/safeLog";
+import { getDecision, pushOutbox, updateDecision } from "../../../lib/demoStore";
+import { writeAudit } from "../../../lib/audit/audit";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function newToken() {
+  return crypto.randomBytes(16).toString("hex");
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Demo window expired?
   if (isExpiredNow()) return res.status(403).json({ error: "Demo expired" });
 
-  const { decision_id, approver_email } = req.body || {};
-  const did = String(decision_id || "");
-  const approver = String(approver_email || "").trim().toLowerCase();
+  const user = String(req.headers["x-demo-user"] || "unknown");
+  const { decision_id } = req.body || {};
+  const id = String(decision_id || "");
+  if (!id) return res.status(400).json({ error: "decision_id required" });
 
-  // Prevent abuse: only allow allowlisted emails/domains
-  if (!isEmailAllowed(approver)) return res.status(403).json({ error: "Approver email not allowlisted" });
-
-  const d = getDecision(did);
+  const d = getDecision(id);
   if (!d) return res.status(404).json({ error: "Decision not found" });
 
-  const token = crypto.randomBytes(20).toString("hex");
-  const tokenExp = Date.now() + 15 * 60 * 1000; // 15 minutes
+  // For demo: notify only makes sense if decision is still pending
+  if (d.status !== "PENDING") {
+    return res.status(400).json({ error: "Decision is not pending", status: d.status });
+  }
 
-  const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
-  // For local dev, base may be empty; UI can render relative links too.
-  const approveLink = `${base}/approvals?decision_id=${encodeURIComponent(did)}&token=${encodeURIComponent(token)}`;
+  // Optional: allowlist check (if notify is used by “approvers”)
+  // If you want notify to be callable by anyone, remove this block.
+  if (!isEmailAllowed(user)) {
+    return res.status(403).json({ error: "Email not allowlisted" });
+  }
 
-  updateDecision(did, {
-    approver_hash: hashEmail(approver),
-    approval_token: token,
-    token_expires_at: tokenExp,
+  const token = newToken();
+
+  // Save token + notified timestamp on the decision (minimal)
+  const updated = updateDecision(id, {
+    notify_token: token,
+    notifiedAt: nowIso(),
   });
 
-  // Outbox item for demo UI
+  // Push to outbox (demo email queue / Teams queue / etc.)
   pushOutbox({
-    ts: Date.now(),
-    to_hash: hashEmail(approver),
-    kind: d.control_mode === "HITL" ? "HITL_APPROVAL" : "HOTL_REVIEW",
-    decision_id: did,
-    link: approveLink,
+    type: "decision_notify",
+    decision_id: updated.id,
+    agent_id: updated.agent_id,
+    action: updated.action,
+    target: updated.target,
+    tier: updated.tier,
+    control_mode: updated.control_mode,
+    status: updated.status,
+    notify_token: token,
   });
 
-  appendAudit({
-    ts: Date.now(),
-    type: "notify_outbox",
-    user_hash: hashEmail(String(req.headers["x-demo-user"] || "")),
-    data: redact({ decision_id: did, control_mode: d.control_mode }),
+  // Unified audit
+  writeAudit({
+    ts: nowIso(),
+    user,
+    endpoint: "/api/decisions/notify",
+    decision: "ALLOW",
+    reason: "decision_notify_enqueued",
+    decision_id: updated.id,
+    agentId: updated.agent_id,
+    control_mode: updated.control_mode,
+    action: updated.action,
+    target: updated.target,
+    tier: updated.tier,
+    policy_version: updated.policy_version,
   });
 
   return res.status(200).json({
     ok: true,
-    decision_id: did,
-    outbox_link: approveLink,
-    note: "Demo-safe notify: link stored in outbox (no real email sent).",
+    decision_id: updated.id,
+    status: updated.status,
+    enqueued: true,
   });
 }
