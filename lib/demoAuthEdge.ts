@@ -1,10 +1,12 @@
-// lib/demoAuthEdge.ts
-// Edge-safe demo auth helpers (NO node:crypto)
+/**
+ * Edge-safe auth helpers (no Node crypto).
+ * Decodes the session payload from "payload.sig" token and returns { email }.
+ */
 
-export type Session = {
+export type EdgeSession = {
   email: string;
-  iat: number; // unix seconds
-  exp: number; // unix seconds
+  iat?: number;
+  exp?: number;
 };
 
 const COOKIE_NAME = "aif_demo_session";
@@ -13,30 +15,40 @@ export function getCookieName() {
   return COOKIE_NAME;
 }
 
-function parseCsv(envVal?: string): string[] {
+// Keep same behavior as server-side demoAuth.ts
+export function parseCsv(envVal?: string): string[] {
   return (envVal || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
 }
 
-export function isDemoExpiredNow(): boolean {
-  const expiresAt = process.env.DEMO_EXPIRES_AT;
-  if (!expiresAt) return false;
-  const ts = Date.parse(expiresAt);
-  if (Number.isNaN(ts)) return false;
-  return Date.now() > ts;
+export function canonicalizeEmail(emailRaw: string): string {
+  const email = (emailRaw || "").trim().toLowerCase();
+  const [localRaw, domainRaw] = email.split("@");
+  if (!localRaw || !domainRaw) return email;
+
+  let local = localRaw;
+  let domain = domainRaw;
+
+  if (domain === "googlemail.com") domain = "gmail.com";
+
+  if (domain === "gmail.com") {
+    local = local.split("+")[0];
+    local = local.replace(/\./g, "");
+  }
+
+  return `${local}@${domain}`;
 }
 
-// Back-compat name used by routes
-export const isExpiredNow = isDemoExpiredNow;
-
 export function isEmailAllowed(emailRaw: string): boolean {
-  const email = (emailRaw || "").trim().toLowerCase();
+  const email = canonicalizeEmail(emailRaw);
   if (!email.includes("@")) return false;
 
-  const allowedEmails = parseCsv(process.env.DEMO_ALLOWED_EMAILS);
+  const allowedEmailsRaw = parseCsv(process.env.DEMO_ALLOWED_EMAILS);
   const allowedDomains = parseCsv(process.env.DEMO_ALLOWED_DOMAINS);
+
+  const allowedEmails = allowedEmailsRaw.map(canonicalizeEmail);
 
   if (allowedEmails.includes(email)) return true;
 
@@ -46,25 +58,54 @@ export function isEmailAllowed(emailRaw: string): boolean {
   return false;
 }
 
-// OPTIONAL: decode session payload WITHOUT verifying signature (Edge-safe).
-// Token format: "<base64url(json)>.<sig>"
-export function tryDecodeSession(token: string): Session | null {
+export function isExpiredNow(): boolean {
+  const expiresAt = process.env.DEMO_EXPIRES_AT;
+  if (!expiresAt) return false;
+  const ts = Date.parse(expiresAt);
+  if (Number.isNaN(ts)) return false;
+  return Date.now() > ts;
+}
+
+// ---- base64url decode for Edge ----
+function b64urlToString(input: string): string {
+  const pad = input.length % 4 === 0 ? "" : "=".repeat(4 - (input.length % 4));
+  const s = input.replace(/-/g, "+").replace(/_/g, "/") + pad;
+
+  // atob is available in Edge runtime
+  const decoded = atob(s);
+  // Convert binary string to UTF-8 string
+  const bytes = Uint8Array.from(decoded, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Edge-safe session decode:
+ * token format = "<payload_b64url>.<sig_b64url>"
+ * We DO NOT verify signature in middleware; we just decode payload and check exp.
+ */
+export function tryDecodeSession(token: string): EdgeSession | null {
   try {
-    const [payload] = (token || "").split(".");
+    const t = (token || "").trim();
+    if (!t) return null;
+
+    const parts = t.split(".");
+    if (parts.length < 1) return null;
+
+    const payload = parts[0];
     if (!payload) return null;
 
-    // base64url -> base64
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
-    const json = atob(b64 + pad);
+    const json = b64urlToString(payload);
+    const obj = JSON.parse(json) as EdgeSession;
 
-    const obj = JSON.parse(json) as Session;
-    if (!obj?.email || !obj?.exp) return null;
+    if (!obj?.email) return null;
 
-    const now = Math.floor(Date.now() / 1000);
-    if (now >= obj.exp) return null;
+    // Optional exp check (keeps behavior consistent)
+    if (obj.exp) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now >= obj.exp) return null;
+    }
 
-    return obj;
+    return { email: String(obj.email).trim().toLowerCase(), iat: obj.iat, exp: obj.exp };
   } catch {
     return null;
   }
