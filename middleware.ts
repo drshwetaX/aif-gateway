@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCookieName, isDemoExpiredNow as isExpiredNow, verifySession } from "./lib/demoAuth";
+import { getCookieName, isExpiredNow, isEmailAllowed, tryDecodeSession } from "./lib/demoAuthEdge";
 
 // Public UI/auth routes (no session required)
 const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
@@ -16,8 +16,9 @@ const PUBLIC = new Set(["/login", "/api/auth/login", "/api/health"]);
 // Public API routes needed for integrations/importers (no session required)
 const PUBLIC_PATHS = [
   "/api/health",
-   "/api/openapi", 
-  "/api/openapi.json", // ✅ needed for Foundry OpenAPI tool import
+  "/api/openapi",
+  "/api/openapi.json",
+  "/api/run",           // ✅ Foundry tool call endpoint must be public (no cookies)
 ];
 
 export function middleware(req: NextRequest) {
@@ -46,12 +47,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Verify session cookie
+  // Edge-safe session decode (no crypto verify in middleware)
   const token = req.cookies.get(getCookieName())?.value || "";
-  const secret = process.env.DEMO_AUTH_SECRET || "";
-  const session = secret ? verifySession(token, secret) : null;
+  const session = tryDecodeSession(token);
 
-  if (!session) {
+  // Basic allowlist enforcement
+  if (!session || !isEmailAllowed(session.email)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
