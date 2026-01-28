@@ -5,8 +5,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDecision, updateDecision } from "@/lib/demoStore";
-import { writeAudit } from "@/lib/audit/audit";
+import { getDecision, updateDecision } from "../../../lib/demoStore";
+import { writeAudit } from "../../../lib/audit/audit";
 
 function nowIso() {
   return new Date().toISOString();
@@ -20,8 +20,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const user = String(req.headers["x-demo-user"] || "unknown");
   const { decision_id, reason } = req.body || {};
-
   const id = String(decision_id || "");
+
   if (!id) return res.status(400).json({ error: "decision_id required" });
 
   const d = getDecision(id);
@@ -31,7 +31,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     status: "DENIED",
     deniedAt: nowIso(),
     deniedBy: user,
-    deniedReason: reason ? String(reason) : "Denied by human reviewer",
+    deniedReason: reason ? String(reason) : "Denied by reviewer",
   });
 
   writeAudit({
@@ -40,7 +40,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     endpoint: "/api/decisions/deny",
     decision: "ALLOW",
     reason: "decision_denied",
-    decision_id: id,
+    decision_id: updated.id,
     agentId: updated.agent_id,
     control_mode: updated.control_mode,
     action: updated.action,
