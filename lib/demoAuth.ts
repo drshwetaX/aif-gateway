@@ -100,6 +100,32 @@ export function cookieSerialize(name: string, value: string, maxAgeSec: number) 
     `Max-Age=${maxAgeSec}`,
   ].join("; ");
 }
+// Backwards-compatible names used by some routes:
+export const isExpiredNow = isDemoExpiredNow;
+
+// Basic allowlist check (email + domain) for the demo.
+// Uses env vars: DEMO_ALLOWED_EMAILS="a@b.com,c@d.com" and DEMO_ALLOWED_DOMAINS="gmail.com,partner.org"
+export function isEmailAllowed(email: string): boolean {
+  const e = (email || "").toLowerCase().trim();
+  if (!e || !e.includes("@")) return false;
+
+  const allowedEmails = (process.env.DEMO_ALLOWED_EMAILS || "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+
+  const allowedDomains = (process.env.DEMO_ALLOWED_DOMAINS || "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (allowedEmails.includes(e)) return true;
+
+  const domain = e.split("@")[1] || "";
+  if (allowedDomains.includes(domain)) return true;
+
+  return false;
+}
 
 export function clearCookieHeader(name: string) {
   return `${name}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
