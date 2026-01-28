@@ -86,6 +86,18 @@ export function updateDecision(id: string, patch: Partial<Decision>): Decision {
   writeDecisions(decisions);
   return updated;
 }
+// --- Outbox (minimal) ---
+const OUTBOX_PATH = path.join(DATA_DIR, "outbox.jsonl");
+
+export function pushOutbox(msg: any) {
+  ensureDirs();
+  const line = JSON.stringify({
+    ts: new Date().toISOString(),
+    ...msg,
+  });
+  fs.appendFileSync(OUTBOX_PATH, line + "\n", "utf8");
+  return { ok: true };
+}
 
 export function appendAudit(event: any) {
   ensureDirs();
