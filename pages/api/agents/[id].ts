@@ -4,7 +4,8 @@
  * Purpose: Get agent details by id.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAgent } from "../../../lib/store";
+import { getAgent } from "../../../lib/demoStore";
+
 
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
