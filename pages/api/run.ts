@@ -1,163 +1,115 @@
-// pages/api/run.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { resolveTier, controlsForTier } from "@/lib/policy/policyEngine";
 import { buildIntent } from "@/lib/policy/intent";
 import { writeAudit } from "@/lib/audit/audit";
+import { getAgent } from "@/lib/demoStore";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-type RunResponse =
-  | {
-      ok: true;
-      ts: string;
-      tier: string;
-      controls: any;
-      intent: any;
-      decision: "ALLOWED";
-      rationale: string;
-      echo?: any;
-    }
-  | {
-      ok: false;
-      ts: string;
-      tier: string;
-      controls: any;
-      intent: any;
-      decision: "DENIED";
-      error: "approval_required" | "sandbox_only" | "invalid_request" | "internal_error";
-      rationale: string;
-    };
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const t0 = Date.now();
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<RunResponse>) {
-  // Allow only POST
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({
-      ok: false,
-      ts: nowIso(),
-      tier: "A1",
-      controls: {},
-      intent: {},
-      decision: "DENIED",
-      error: "invalid_request",
-      rationale: "Method Not Allowed. Use POST.",
-    });
+    return res.status(405).json({ ok: false, error: "method_not_allowed" });
   }
 
-  try {
-    // 1) Build intent from request payload
-    const intent = buildIntent(req.body);
+  const user = (req.headers["x-demo-user"] as string | undefined) ?? undefined;
+  const body = req.body || {};
+  const env = body?.env;
+  const approvedFlag = !!body?.approved;
 
-    // Basic payload sanity (prevents accidental “match everything”)
-    if (!Array.isArray(intent.actions) || !Array.isArray(intent.systems)) {
-      return res.status(400).json({
-        ok: false,
-        ts: nowIso(),
-        tier: "A1",
-        controls: {},
-        intent,
-        decision: "DENIED",
-        error: "invalid_request",
-        rationale: "Invalid payload: actions and systems must be arrays.",
-      });
-    }
+  const intent = buildIntent(body);
 
-    // 2) Resolve tier + controls
-    const tier = resolveTier(intent);
-    const controls = controlsForTier(tier);
+  const agentId = body?.agent_id ? String(body.agent_id) : "";
+  const agent = agentId ? getAgent(agentId) : null;
 
-    const user = (req.headers["x-demo-user"] as string | undefined) ?? undefined;
-    const env = req.body?.env; // e.g., "sandbox" | "prod"
-    const approved = !!req.body?.approved;
+  const computedTier = resolveTier(intent);
+  const computedControls = controlsForTier(computedTier);
 
-    // 3) Enforce controls
-    if (controls?.approvalRequired && !approved) {
-      writeAudit({
-        ts: nowIso(),
-        user,
-        endpoint: "/api/run",
-        intent,
-        tier,
-        controls,
-        decision: "DENY",
-        reason: "approval_required",
-      });
+  const latency_ms = () => Date.now() - t0;
 
-      return res.status(403).json({
-        ok: false,
-        ts: nowIso(),
-        tier,
-        controls,
-        intent,
-        decision: "DENIED",
-        error: "approval_required",
-        rationale: "This request requires approval per policy controls.",
-      });
-    }
-
-    if (controls?.sandboxOnly && env !== "sandbox") {
-      writeAudit({
-        ts: nowIso(),
-        user,
-        endpoint: "/api/run",
-        intent,
-        tier,
-        controls,
-        decision: "DENY",
-        reason: "sandbox_only",
-      });
-
-      return res.status(403).json({
-        ok: false,
-        ts: nowIso(),
-        tier,
-        controls,
-        intent,
-        decision: "DENIED",
-        error: "sandbox_only",
-        rationale: "This request is restricted to the sandbox environment per policy controls.",
-      });
-    }
-
-    // 4) ALLOW (replace this stub with your real execution later)
+  if (!agent) {
     writeAudit({
       ts: nowIso(),
       user,
       endpoint: "/api/run",
+      decision: "DENY",
+      reason: "agent_not_registered",
+      agentId,
       intent,
-      tier,
-      controls,
-      decision: "ALLOW",
+      tier: computedTier,
+      controls: computedControls,
+      latency_ms: latency_ms(),
+      env,
     });
 
-    return res.status(200).json({
-      ok: true,
-      ts: nowIso(),
-      tier,
-      controls,
-      intent,
-      decision: "ALLOWED",
-      rationale: "Policy checks passed. (Execution stub response.)",
-      echo: {
-        problemStatement: req.body?.problemStatement ?? "",
-        approved,
-        env: env ?? "unspecified",
-      },
-    });
-  } catch (e: any) {
-    console.error("Error in /api/run:", e);
-
-    return res.status(500).json({
+    return res.status(403).json({
       ok: false,
-      ts: nowIso(),
-      tier: "A1",
-      controls: {},
-      intent: {},
       decision: "DENIED",
-      error: "internal_error",
-      rationale: e?.message ?? "Internal error",
+      error: "invalid_request",
+      rationale: "Agent not registered. Register via /api/agents/register first.",
+      ts: nowIso(),
+      tier: computedTier,
+      controls: computedControls,
+      intent,
     });
   }
+
+  const tier = agent.tier ?? computedTier;
+  const controls = agent.controls ?? computedControls;
+
+  if (agent.status === "paused") {
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_paused", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "invalid_request", rationale: "Agent is paused by governance.", ts: nowIso(), tier, controls, intent });
+  }
+
+  if (agent.status === "killed") {
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_killed", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "invalid_request", rationale: "Agent is killed by governance.", ts: nowIso(), tier, controls, intent });
+  }
+
+  if (agent.approved === false || agent.status === "requested") {
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_not_approved", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "Agent is not approved yet (design-time gate).", ts: nowIso(), tier, controls, intent });
+  }
+
+  if (controls?.approvalRequired && !approvedFlag) {
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "approval_required", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "This action requires approval per policy controls.", ts: nowIso(), tier, controls, intent });
+  }
+
+  if (controls?.sandboxOnly && env !== "sandbox") {
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "sandbox_only", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "sandbox_only", rationale: "This action is restricted to sandbox per policy controls.", ts: nowIso(), tier, controls, intent });
+  }
+
+  writeAudit({
+    ts: nowIso(),
+    user,
+    endpoint: "/api/run",
+    decision: "ALLOW",
+    reason: "policy_checks_passed",
+    agentId,
+    intent,
+    tier,
+    controls,
+    latency_ms: latency_ms(),
+    env,
+    tokens_in: 0,
+    tokens_out: 0,
+    cost_usd: 0,
+  });
+
+  return res.status(200).json({
+    ok: true,
+    decision: "ALLOWED",
+    rationale: "Policy checks passed. (Execution stub response.)",
+    ts: nowIso(),
+    tier,
+    controls,
+    intent,
+  });
 }
