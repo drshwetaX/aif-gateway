@@ -1,72 +1,47 @@
-import { useRouter } from "next/router";
+/**
+ * Author: Dr Shweta Shah
+ * Date: 2026-01-26
+ * Purpose: Password-only demo login (no email UI).
+ * - Validates DEMO_PASSWORD
+ * - Uses DEMO_AUTH_SECRET to sign the session cookie
+ * - Sets a fixed demo identity so middleware/audit still have a user
+ */
 
-import { useState } from "react";
+import type { NextApiRequest, NextApiResponse } from "next";
+import {
+  cookieSerialize,
+  getCookieName,
+  isDemoExpiredNow,
+  signSession,
+} from "../../../lib/demoAuth";
+import { Store } from "../../../lib/store";
+import { hashEmail } from "../../../lib/safeLog";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const nextPath = (router.query.next as string) || "/";
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (isDemoExpiredNow()) return res.status(403).json({ error: "Demo expired" });
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setLoading(true);
+  const { password } = req.body || {};
+  const passStr = String(password || "");
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
+  const demoPass = process.env.DEMO_PASSWORD || "";
+  const secret = process.env.DEMO_AUTH_SECRET || "";
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErr(data?.error || "Login failed");
-        setLoading(false);
-        return;
-      }
+  if (!demoPass) return res.status(500).json({ error: "Missing DEMO_PASSWORD" });
+  if (!secret || secret.length < 32) return res.status(500).json({ error: "Missing/weak DEMO_AUTH_SECRET" });
 
-      router.replace(nextPath);
-    } catch {
-      setErr("Network error");
-      setLoading(false);
-    }
-  }
+  if (passStr !== demoPass) return res.status(401).json({ error: "Invalid credentials" });
 
-  return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 420, border: "1px solid #e5e5e5", borderRadius: 12, padding: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>AIF Gateway</h1>
-        <p style={{ marginTop: 8, color: "#555" }}>Enter the demo password to continue.</p>
+  // Fixed demo identity (since UI doesn’t collect email)
+  const emailStr =
+    (process.env.DEMO_DEFAULT_EMAIL || "").trim().toLowerCase() || "demo@aif.local";
 
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 12 }}>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Demo password"
-            autoFocus
-            style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
-          />
-          <button
-            type="submit"
-            disabled={loading || !password}
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: "none",
-              cursor: loading ? "default" : "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
+  const now = Math.floor(Date.now() / 1000);
+  const maxAge = 60 * 60 * 8; // 8 hours
+  const token = signSession({ email: emailStr, iat: now, exp: now + maxAge }, secret);
 
-        {err && <p style={{ marginTop: 12, color: "#b00020" }}>{err}</p>}
-      </div>
-    </main>
-  );
+  res.setHeader("Set-Cookie", cookieSerialize(getCookieName(), token, maxAge));
+  await Store.appendAudit({ ts: Date.now(), type: "auth.login", user: hashEmail(emailStr), data: { ok: true } });
+
+  return res.status(200).json({ ok: true });
 }
