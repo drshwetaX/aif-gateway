@@ -1,6 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { cmdUrl } from "../../../lib/redis";
 import { getLogs } from "../../../lib/store";
+import fs from "fs";
+
+const LOG_PATH = process.env.LEDGER_PATH || "./data/ledger/aif_ledger.jsonl";
+
+export function getLogs(limit = 200) {
+  try {
+    if (!fs.existsSync(LOG_PATH)) return [];
+    const lines = fs.readFileSync(LOG_PATH, "utf8").trim().split("\n").filter(Boolean);
+    const tail = lines.slice(Math.max(0, lines.length - limit));
+    return tail.map((l) => {
+      try { return JSON.parse(l); } catch { return { raw: l }; }
+    });
+  } catch {
+    return [];
+  }
+}
 
 const KEY = "aif:demo:logs";
 
