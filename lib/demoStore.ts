@@ -34,7 +34,34 @@ export async function addAgent(agent: Agent) {
   return agent;
 }
 // ---- Decisions (demo-friendly in-memory) ----
+// ---- Logs (demo-friendly in-memory) ----
 
+export type DemoLog = {
+  id: string;
+  ts: string;
+  level?: "info" | "warn" | "error" | string;
+  msg: string;
+  meta?: any;
+  [key: string]: any;
+};
+
+if (!g.__DEMO_STORE_LOGS__) {
+  g.__DEMO_STORE_LOGS__ = {
+    logs: [] as DemoLog[],
+  };
+}
+const logStore = g.__DEMO_STORE_LOGS__ as { logs: DemoLog[] };
+
+export async function pushLog(log: DemoLog): Promise<DemoLog> {
+  logStore.logs.unshift(log);
+  // optional: cap growth
+  if (logStore.logs.length > 500) logStore.logs.length = 500;
+  return log;
+}
+
+export async function getLogs(limit = 200): Promise<DemoLog[]> {
+  return logStore.logs.slice(0, Math.max(1, limit));
+}
 export type Decision = {
   id: string;                 // decision id (or same as agent id, depending on your app)
   agentId?: string;
