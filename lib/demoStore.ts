@@ -1,6 +1,5 @@
 // lib/demoStore.ts
-import fs from "fs";
-import path from "path";
+import { Redis } from "@upstash/redis";
 
 export type Agent = {
   id: string;
@@ -18,7 +17,7 @@ export type Agent = {
   problem_statement?: string;
   intent?: any;
 
-  tier?: string;         // A1-A6
+  tier?: string; // A1-A6
   controls?: any;
   allowed_tools?: string[];
 
@@ -59,136 +58,139 @@ export type Decision = {
   [k: string]: any;
 };
 
-const DATA_DIR = process.env.DEMO_DATA_DIR || "./data/demo";
-const AGENTS_PATH = path.join(DATA_DIR, "agents.json");
-const DECISIONS_PATH = path.join(DATA_DIR, "decisions.json");
-const OUTBOX_PATH = path.join(DATA_DIR, "outbox.jsonl");
-
-const AUDIT_PATH = process.env.LEDGER_PATH || "./data/ledger/aif_ledger.jsonl";
-
-function ensureDirs() {
-  fs.mkdirSync(path.dirname(AGENTS_PATH), { recursive: true });
-  fs.mkdirSync(path.dirname(DECISIONS_PATH), { recursive: true });
-  fs.mkdirSync(path.dirname(OUTBOX_PATH), { recursive: true });
-  fs.mkdirSync(path.dirname(AUDIT_PATH), { recursive: true });
-}
-
-function safeReadJson<T>(filePath: string, fallback: T): T {
-  ensureDirs();
-  if (!fs.existsSync(filePath)) return fallback;
-  try {
-    const raw = fs.readFileSync(filePath, "utf8");
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function safeWriteJson(filePath: string, obj: any) {
-  ensureDirs();
-  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf8");
-}
-
 function nowIso() {
   return new Date().toISOString();
 }
 
+// Upstash Redis (REST)
+const redis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      })
+    : null;
+
+// Key helpers
+const K = {
+  agent: (id: string) => `aif:agent:${id}`,
+  agents: `aif:agents`, // set of agent ids
+  decision: (id: string) => `aif:decision:${id}`,
+  decisions: `aif:decisions`, // set of decision ids
+  audit: `aif:audit`, // list of JSON strings (newest at head)
+  outbox: `aif:outbox`, // list of JSON strings
+};
+
+function requireRedis() {
+  if (!redis) {
+    throw new Error(
+      "Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN."
+    );
+  }
+  return redis;
+}
+
 // ---------- Agents ----------
-function readAgents(): Record<string, Agent> {
-  return safeReadJson<Record<string, Agent>>(AGENTS_PATH, {});
+export async function getAgent(id: string): Promise<Agent | null> {
+  const r = requireRedis();
+  const obj = await r.get<Agent>(K.agent(id));
+  return obj ?? null;
 }
 
-function writeAgents(obj: Record<string, Agent>) {
-  safeWriteJson(AGENTS_PATH, obj);
+export async function listAgents(): Promise<Agent[]> {
+  const r = requireRedis();
+  const ids = (await r.smembers<string[]>(K.agents)) ?? [];
+  if (!ids.length) return [];
+
+  // pipeline fetch
+  const pipeline = r.pipeline();
+  ids.forEach((id) => pipeline.get(K.agent(id)));
+  const res = await pipeline.exec();
+  return res
+    .map((x) => (x as any)?.result as Agent | null)
+    .filter((x): x is Agent => !!x);
 }
 
-export function getAgent(id: string): Agent | null {
-  const agents = readAgents();
-  return agents[id] ?? null;
-}
+export async function updateAgent(id: string, patch: Partial<Agent>): Promise<Agent> {
+  const r = requireRedis();
+  const existing = (await r.get<Agent>(K.agent(id))) ?? {
+    id,
+    createdAt: nowIso(),
+    status: "requested",
+    approved: false,
+  };
 
-export function listAgents(): Agent[] {
-  return Object.values(readAgents());
-}
-
-export function updateAgent(id: string, patch: Partial<Agent>): Agent {
-  const agents = readAgents();
-  const existing: Agent = agents[id] ?? { id, createdAt: nowIso(), status: "requested", approved: false };
   const updated: Agent = { ...existing, ...patch, id };
-  agents[id] = updated;
-  writeAgents(agents);
+  await r.set(K.agent(id), updated);
+  await r.sadd(K.agents, id);
   return updated;
 }
 
 // ---------- Decisions ----------
-function readDecisions(): Record<string, Decision> {
-  return safeReadJson<Record<string, Decision>>(DECISIONS_PATH, {});
+export async function getDecision(id: string): Promise<Decision | null> {
+  const r = requireRedis();
+  const obj = await r.get<Decision>(K.decision(id));
+  return obj ?? null;
 }
 
-function writeDecisions(obj: Record<string, Decision>) {
-  safeWriteJson(DECISIONS_PATH, obj);
+export async function listDecisions(): Promise<Decision[]> {
+  const r = requireRedis();
+  const ids = (await r.smembers<string[]>(K.decisions)) ?? [];
+  if (!ids.length) return [];
+
+  const pipeline = r.pipeline();
+  ids.forEach((id) => pipeline.get(K.decision(id)));
+  const res = await pipeline.exec();
+  return res
+    .map((x) => (x as any)?.result as Decision | null)
+    .filter((x): x is Decision => !!x);
 }
 
-export function getDecision(id: string): Decision | null {
-  const decisions = readDecisions();
-  return decisions[id] ?? null;
-}
+export async function updateDecision(id: string, patch: Partial<Decision>): Promise<Decision> {
+  const r = requireRedis();
+  const existing = (await r.get<Decision>(K.decision(id))) ?? {
+    id,
+    createdAt: nowIso(),
+    status: "PENDING",
+  };
 
-export function listDecisions(): Decision[] {
-  return Object.values(readDecisions());
-}
-
-export function updateDecision(id: string, patch: Partial<Decision>): Decision {
-  const decisions = readDecisions();
-  const existing: Decision = decisions[id] ?? { id, createdAt: nowIso(), status: "PENDING" };
   const updated: Decision = { ...existing, ...patch, id };
-  decisions[id] = updated;
-  writeDecisions(decisions);
+  await r.set(K.decision(id), updated);
+  await r.sadd(K.decisions, id);
   return updated;
 }
 
 // ---------- Outbox ----------
-export function pushOutbox(msg: any) {
-  ensureDirs();
+export async function pushOutbox(msg: any) {
+  const r = requireRedis();
   const line = JSON.stringify({ ts: nowIso(), ...msg });
-  fs.appendFileSync(OUTBOX_PATH, line + "\n", "utf8");
+  await r.lpush(K.outbox, line);
+  await r.ltrim(K.outbox, 0, 199);
   return { ok: true };
 }
+
 // --- Compatibility shim for older routes expecting appendAudit ---
-export function appendAudit(event: any) {
-  ensureDirs();
-
-  // normalize ts to ISO string
-  const ts =
-    typeof event?.ts === "string"
-      ? event.ts
-      : new Date().toISOString();
-
+export async function appendAudit(event: any) {
+  const r = requireRedis();
+  const ts = typeof event?.ts === "string" ? event.ts : nowIso();
   const line = JSON.stringify({ ts, ...event });
-  fs.appendFileSync(AUDIT_PATH, line + "\n", "utf8");
+
+  await r.lpush(K.audit, line);
+  await r.ltrim(K.audit, 0, 499); // keep last 500
   return { ok: true };
 }
 
 // ---------- Audit / Logs ----------
-export function getLogs(limit = 200): any[] {
-  ensureDirs();
-  if (!fs.existsSync(AUDIT_PATH)) return [];
-  try {
-    const raw = fs.readFileSync(AUDIT_PATH, "utf8");
-    if (!raw) return [];
-    const lines = raw.trim().split("\n");
-    const tail = lines.slice(Math.max(0, lines.length - limit));
-    return tail
-      .map((l) => {
-        try {
-          return JSON.parse(l);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
+export async function getLogs(limit = 200): Promise<any[]> {
+  const r = requireRedis();
+  const lines = (await r.lrange<string[]>(K.audit, 0, Math.max(0, limit - 1))) ?? [];
+  return lines
+    .map((l) => {
+      try {
+        return JSON.parse(l);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
