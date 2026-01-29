@@ -327,6 +327,30 @@ export default function RegisterAgentPage() {
                       <div className="mt-2 text-xs text-zinc-600">
                         <span className="font-mono break-all">{a.id}</span>
                       </div>
+                      {a.env ? (
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Env: <span className="font-medium">{a.env}</span>
+                        </span>
+                      ) : null}
+                      
+                      {a.stage ? (
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Stage: <span className="font-medium">{a.stage}</span>
+                        </span>
+                      ) : null}
+                      
+                      {a.requested_at || a.created_at ? (
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Requested: <span className="font-medium">{String(a.requested_at || a.created_at).slice(0, 19)}</span>
+                        </span>
+                      ) : null}
+                      
+                      {a.review_notes ? (
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5" title={a.review_notes}>
+                          Comment: <span className="font-medium">{String(a.review_notes).slice(0, 24)}{String(a.review_notes).length > 24 ? "…" : ""}</span>
+                        </span>
+                      ) : null}
+
                     </div>
 
                     <Link
