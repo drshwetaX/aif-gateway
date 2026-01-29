@@ -37,6 +37,16 @@ export async function addAgent(agent: Agent) {
 export async function listAgents(): Promise<Agent[]> {
   return store.agents;
 }
+export async function upsertAgent(agent: Agent): Promise<Agent> {
+  const idx = store.agents.findIndex((a) => a.id === agent.id);
+  if (idx === -1) {
+    store.agents.unshift(agent);
+    return agent;
+  }
+  const updated: Agent = { ...store.agents[idx], ...agent };
+  store.agents[idx] = updated;
+  return updated;
+}
 
 export async function getAgent(id: string): Promise<Agent | null> {
   return store.agents.find((a) => a.id === id) ?? null;
