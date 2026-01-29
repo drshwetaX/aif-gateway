@@ -1,3 +1,4 @@
+// lib/redis.ts
 const REST_URL =
   process.env.UPSTASH_REDIS_REST_URL ||
   process.env.KV_REST_API_URL ||
@@ -13,20 +14,21 @@ function assertEnv() {
     throw new Error("Missing Redis REST env vars");
   }
 }
-// lib/redis.ts
-import { Redis } from "@upstash/redis";
 
-export const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
-    : null;
+export async function getRedis() {
+  // only create Redis client when env exists
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null;
+  }
+  const { Redis } = await import("@upstash/redis");
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+}
 
 export async function multiExec(commands: (string | number)[][]) {
   assertEnv();
-
   const res = await fetch(`${REST_URL}/multi-exec`, {
     method: "POST",
     headers: {
@@ -35,7 +37,6 @@ export async function multiExec(commands: (string | number)[][]) {
     },
     body: JSON.stringify(commands),
   });
-
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error || "Redis error");
   return data;
@@ -43,13 +44,9 @@ export async function multiExec(commands: (string | number)[][]) {
 
 export async function cmdUrl(path: string) {
   assertEnv();
-
   const res = await fetch(`${REST_URL}/${path}`, {
-    headers: {
-      Authorization: `Bearer ${REST_TOKEN}`,
-    },
+    headers: { Authorization: `Bearer ${REST_TOKEN}` },
   });
-
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error || "Redis error");
   return data?.result;
