@@ -12,7 +12,7 @@ export default function LoginPage() {
 
     // only allow internal relative paths
     if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
-    return "/console/registry";
+    return "/console";
   }, [router.isReady, router.query.next]);
 
   const [email, setEmail] = useState("");
