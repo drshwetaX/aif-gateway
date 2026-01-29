@@ -1,20 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { buildIntent } from "@/lib/policy/intent";
-import { resolveTier, controlsForTier, type Tier, type AgentIntent } from "@/lib/policy/policyEngine";
+import {
+  resolveTier,
+  controlsForTier,
+  type Tier,
+  type AgentIntent,
+} from "@/lib/policy/policyEngine";
 import { loadAuraPolicy } from "@/lib/policy/loadPolicy";
 import { writeAudit } from "@/lib/audit/audit";
 import { upsertAgent } from "@/lib/demoStore";
-
-const env = body?.env ? String(body.env) : "test";
-const stage = body?.stage ? String(body.stage) : "poc";
-const comment = body?.comment ? String(body.comment) : "";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
 function newAgentId(externalAgentId?: string) {
-  if (externalAgentId && String(externalAgentId).trim()) return `foundry_${String(externalAgentId).trim()}`;
+  if (externalAgentId && String(externalAgentId).trim())
+    return `foundry_${String(externalAgentId).trim()}`;
   return `agent_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
@@ -47,7 +49,8 @@ function explainTiering(intent: AgentIntent, finalTier: Tier) {
   const policy = loadAuraPolicy();
   const rules = (policy.tiering?.rules ?? []) as any[];
 
-  const matched: Array<{ ruleId: string; thenTier: string; reason: string }> = [];
+  const matched: Array<{ ruleId: string; thenTier: string; reason: string }> =
+    [];
 
   for (let i = 0; i < rules.length; i++) {
     const r = rules[i];
@@ -61,9 +64,14 @@ function explainTiering(intent: AgentIntent, finalTier: Tier) {
 
     const ok =
       (actionsAny ? actionsAny.some((a) => intent.actions.includes(a)) : true) &&
-      (actionsOnly ? intent.actions.length > 0 && intent.actions.every((a) => actionsOnly.includes(a)) : true) &&
+      (actionsOnly
+        ? intent.actions.length > 0 &&
+          intent.actions.every((a) => actionsOnly.includes(a))
+        : true) &&
       (systemsAny ? systemsAny.some((s) => intent.systems.includes(s)) : true) &&
-      (dataSensitivityIn ? dataSensitivityIn.includes(intent.dataSensitivity ?? "") : true) &&
+      (dataSensitivityIn
+        ? dataSensitivityIn.includes(intent.dataSensitivity ?? "")
+        : true) &&
       (crossBorder !== undefined ? crossBorder === !!intent.crossBorder : true);
 
     if (!ok) continue;
@@ -76,7 +84,11 @@ function explainTiering(intent: AgentIntent, finalTier: Tier) {
     });
   }
 
-  return { finalTier, matched_rule_ids: matched.map((m) => m.ruleId), matched_rules: matched };
+  return {
+    finalTier,
+    matched_rule_ids: matched.map((m) => m.ruleId),
+    matched_rules: matched,
+  };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -85,17 +97,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
+  // Body lives ONLY here (per-request), not at top-level
+  const body = (req.body ?? {}) as any;
+
   const user = String(req.headers["x-demo-user"] || "unknown");
-  const body = req.body || {};
 
   const name = String(body.name || "Demo Agent");
   const externalAgentId = body.externalAgentId ? String(body.externalAgentId) : undefined;
+
   const overrideTier = body.override_tier ? String(body.override_tier) : undefined;
   const problemStatement = body.problem_statement ? String(body.problem_statement) : "";
 
-  // NEW: registry metadata
-  const env = body.env ? String(body.env) : "test";          // prod/test/sandbox
-  const stage = body.stage ? String(body.stage) : "poc";     // poc/pilot/prod
+  // registry metadata
+  const env = body.env ? String(body.env) : "test";       // prod/test/sandbox
+  const stage = body.stage ? String(body.stage) : "poc";  // poc/pilot/prod
+  const comment = body.comment ? String(body.comment) : "";
   const review_notes = body.review_notes ? String(body.review_notes) : null;
 
   let intent = buildIntent(body);
@@ -107,11 +123,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!Array.isArray(intent.systems) || intent.systems.length === 0) intent.systems = ["kb"];
 
   let tier = resolveTier(intent);
-  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) tier = overrideTier as Tier;
-  const controls = controlsForTier(tier);
+  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) {
+    tier = overrideTier as Tier;
+  }
 
-  const allowed_tools = tier === "A1" || tier === "A2" ? ["read_only"] : ["read_only", "write_via_gateway"];
+  const controls = controlsForTier(tier);
+  const allowed_tools = tier === "A1" || tier === "A2"
+    ? ["read_only"]
+    : ["read_only", "write_via_gateway"];
+
   const agentId = newAgentId(externalAgentId);
+  const ts = nowIso();
 
   const tiering_explain = explainTiering(intent, tier);
 
@@ -125,16 +147,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     approved: false,
 
     // timestamps
-    created_at: nowIso(),
-    requested_at: nowIso(),
+    created_at: ts,
+    requested_at: ts,
     approved_at: null,
-    stage,
-      comment,
-      requested_at: nowIso(),
 
     // registry metadata
     env,
     stage,
+    comment,
     review_notes,
 
     problem_statement: problemStatement,
@@ -143,14 +163,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     controls,
     allowed_tools,
     policy_version: loadAuraPolicy()?.version ?? "unknown",
-    tiering_explain,env,
-  
+    tiering_explain,
 
-    review: { decision: "PENDING", decidedAt: null, decidedBy: null, notes: review_notes },
+    review: {
+      decision: "PENDING",
+      decidedAt: null,
+      decidedBy: null,
+      notes: review_notes,
+    },
   } as any);
 
   await writeAudit({
-    ts: nowIso(),
+    ts,
     user,
     endpoint: "/api/agents/register",
     decision: "ALLOW",
