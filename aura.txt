@@ -1,0 +1,609 @@
+1. The Gap This Document Addresses
+Most organizations exploring agentic AI have isolated proof-of-concepts or vendor-specific pilots, but they lack a cohesive, enterprise-wide approach to:
+•	Prioritize use cases by business value and governance risk.
+•	Embed controls early so regulatory, reputational, and operational risks are managed before deployment.
+•	Standardize orchestration across architecture, policy, and human oversight — instead of ad-hoc or one-off governance.
+•	Enable safe scaling from low-autonomy agents to highly autonomous agents without losing transparency or trust.
+•	Align multiple teams (architecture, business, risk, privacy, DevOps) under one repeatable framework.
+The AURA framework + playbook close this gap by combining governance, architecture patterns, operational processes, and adoption guidance into a single blueprint.
+ 
+2. How to Use This Document
+Think of the two files as complementary:
+AURA Framework
+•	What it is: The blueprint — defines AURA’s principles, maturity levels (A1–A6), and governance layers.
+•	When to use: Early in planning, to align leadership and stakeholders on why and how agentic AI will be governed.
+•	Key use: Map current and planned agent use cases to the maturity model, identify required governance controls, and define oversight mode.
+AURA Playbook
+•	What it is: The manual — step-by-step instructions, checklists, and templates for operationalizing the framework.
+•	When to use: During execution — for scoring use cases, setting guardrails, completing PIAs, running scenario tests, and onboarding teams.
+•	Key use: Follow the playbook phases (Initiation → Governance Gate → Build & Test → Monitor & Improve) to ensure every agent moves from idea to production in a controlled, auditable, and scalable way.
+Scope of the Framework
+•	Not limited to agentic AI
+While the AURA maturity model and oversight modes were designed with agentic AI in mind (A1–A6, low → high autonomy), the governance principles, gates, and orchestration patterns are applicable to:
+o	Generative AI (LLM and non-LLM)
+o	Predictive / analytical AI
+o	Hybrid AI systems that mix deterministic code, analytics, and autonomous reasoning.
+•	AURA provides a policy + process + oversight skeleton that can be wrapped around any AI use case, with extra detail for agentic systems because of their higher risk profile.
+How to Use All Docs for Technical Implementation
+Step 1 — Baseline Capabilities (AI-Ready Data deck)
+•	Purpose: Establish whether your enterprise’s data, governance, integration, and monitoring capabilities are mature enough for AI projects.
+•	How to Use:
+o	Assess each capability area (ingestion, curation, orchestration, adoption, monitoring).
+o	Identify capability gaps that will block safe or scalable AI deployments.
+o	Feed these gaps into your AURA readiness planning.
+ 
+Step 2 — Governance & Maturity Model (AURA Framework)
+•	Purpose: Define how mature your AI governance needs to be for the kinds of AI you plan to deploy.
+•	How to Use:
+o	Classify use cases into maturity levels A1–A6 (or equivalent) based on autonomy, risk, and oversight need.
+o	Select oversight modes and required controls (PIAs, trust scoring, scenario tests).
+o	Align risk teams, architecture, and business owners on this classification.
+ 
+Executive Summary
+Agentic AI (Gartner Definition)
+Agentic AI refers to goal-driven software entities that can autonomously plan, act and adapt to achieve objectives without requiring explicit prompts or producing predetermined outputs. These intelligent agents receive high-level instructions, generate their own task sequences using AI techniques, and leverage tooling to complete multi-step workflows, driving greater automation and productivity across functions Gartner.
+AURA Framework
+AURA (AI Use & Risk Alignment) is Sun Life’s enterprise-wide blueprint for designing, deploying and governing AI agents. It embeds strategic alignment, risk management, responsible AI principles and operational controls into every stage of the agent lifecycle—ensuring explainability, compliance and auditability while scaling from simple bots to fully autonomous orchestrators  
+Why a Framework Matters
+Enterprises rarely succeed by simply purchasing standalone tooling. Instead, they build or adopt a holistic operating model—spanning technical platforms, non-tech processes, organizational structures, and governance artifacts. AURA does exactly this for agentic AI, bundling key capabilities:
+1.	Orchestration & Workflow Management
+2.	Identity, Authentication & Handoff Contracts
+3.	Policy, Governance & Guardrails
+4.	Monitoring, Auditing & Control
+5.	Data & Content Quality & Integration
+6.	Security, Compliance & Resilience
+7.	DevOps, MLOps & Testing
+8.	Organizational Change & Governance Practices
+By following AURA’s modules and leveraging its detailed checklists, templates and scorecards, Sun Life can systematically build each capability in an auditable, scalable and risk-aligned way—transforming the conceptual model into a practical, production-ready agentic AI platform.
+Just as RPA CoEs, MLOps frameworks, and cloud-governance models have given enterprises repeatable, scalable paths for “lights-out” automation and AI/ML, AURA provides the first end-to-end blueprint tailored for truly agentic AI—ensuring consistency, traceability, resilience, and full business alignment from pilot to scale. 
+
+
+1 pager - Implementing AURA in the Enterprise
+1.	Define Your AURA Adoption Strategy
+o	Sponsor & Steering Committee: Identify executive sponsors and form a cross-functional AURA steering team (IT, Risk, Legal, Business).
+o	Roadmap & Milestones: Establish your target maturity level (e.g., L1→L4 agentic sophistication) and map key deliverables (playbook roll-out, control-tower launch, pilot completion).
+2.	Build Foundational Capabilities
+o	Governance Foundation: Stand up your AURA Control Tower and integrate OPA for policy enforcement—run a mini-pilot to validate audit-trail and kill-switch functionality.
+o	Data & CQM Enablement: Deploy or extend your data-quality tooling to incorporate CQM checks on both structured and unstructured inputs.
+o	Engage Technology Partners:
+• Kick off POCs with vendors IBM, Cohere or any chosen vendors to integrate their orchestration, monitoring and context-tagging services into AURA’s layers.
+• Co-develop template connectors (e.g. Watsonx Orchestrate adapter, Cohere Command metadata plugin) and validate via sandbox tests.
+3.	Pilot Fast, Learn Fast
+o	Select a High-Value Use Case: Use your Automation Decision Tree to pick a low-risk, high-visibility agent (e.g., claims-triage chatbot).
+o	Run the Readiness Gate: Execute Playbook §4.1, capture lessons in your Agent Readiness Report, and refine both your playbook and tooling.
+4.	Scale with Confidence
+o	Automate & Integrate: Embed MCP handoff contracts and CI/CD pipelines so every new agent follows the same build-test-deploy pattern.
+o	Stress & Secure: Leverage your Scenario Stress-Testing Toolkit and Third-Party AI Vendor Governance templates to harden resilience and eliminate blind spots.
+5.	Embed Organizational Change
+o	Training & Adoption: Roll out persona-based workshops, e-learning modules, and AURA scorecards for business owners.
+o	Governance Rhythms: Define quarterly AURA reviews—1st line (ops), 2nd line (risk), 3rd line (audit)—to measure compliance, performance, and ROI.
+6.	Continuous Improvement Loop
+o	Metrics & KPIs: Track agent ROI, SLA adherence, audit violations, and CQM score trends.
+o	Playbook Iteration: After each quarter, update your AURA Playbook artifacts based on real-world feedback, emerging regulations, and new technology capabilities.
+ 
+Table of Contents
+Executive Summary	1
+1 pager - Implementing AURA in the Enterprise	2
+AURA – AI Use & Risk Alignment Framework	5
+Purpose	5
+Strategy & Fit	5
+1.	Strategic Alignment	5
+2.	Use Case Qualification Criteria	5
+3.	Automation Decision Tree	6
+4.	Agent Readiness Gate	6
+Agent Design & Oversight	8
+5.	AI Agent Classification Model (L1–L5)	8
+6.	Design & Development Principles	9
+7.	Control Mode Matrix	9
+8.	Agent Decision Map & Governance	11
+Governance & Risk	11
+9.	Governance & the Three Lines of Control	11
+10.	Risk Management & Responsible AI	11
+11.	Human-in-the-Loop (HITL) vs Human-on-the-Loop (HOTL)	13
+12.	Content Governance for Agents	14
+13.	Mapping AURA Governance to Canadian Regulatory Frameworks	14
+14.	Formal PIAs (Privacy Impact Assessments) in AURA	15
+15.	Auditability + Explainability Logs	17
+Technical Controls	17
+16.	Model Context Protocol (MCP) Compliance	17
+16.1	AgentContext Object	18
+16.2	AgentHandoff Protocol	18
+16.3	ModelContext Tags	18
+17.	Tech–Business Convergence Layer	19
+18.	Third-Party AI Vendor Governance in AURA	19
+Scale & Measurement	20
+19.	Scaling Roadmap	20
+20.	Scenario Stress Testing for Agents	20
+21.	Employee Training for Agentic AI: AURA’s People Readiness Stream	21
+22.	Real-time Monitoring + Adaptive Controls in AURA	22
+23.	Market Behavior Simulation for L4 Agents	22
+24.	Introducing the AURA-Based Layered Architecture (7+2 Model)	23
+
+ 
+AURA – AI Use & Risk Alignment Framework
+Purpose
+AURA is AI Use & Risk Alignment Framework a Sun Life’s enterprise-wide framework for designing, deploying, and governing AI agents. It ensures alignment with business goals, manages risk, and operationalizes responsible AI practices. The framework supports scalable and strategic use of AI agents across business functions while embedding explainability, compliance, and auditability.
+ 
+Strategy & Fit
+1.	Strategic Alignment
+Definition: Ensures every AI agent is tied to meaningful business outcomes and prioritized based on value, risk, and frequency.
+•	Map to Business Goals: Each AI agent must support strategic objectives such as operational efficiency, improved client experience, or compliance assurance.
+•	Value–Volume–Risk Prioritization: Use cases are selected based on impact, frequency, and inherent risk.
+•	Business Sponsorship: AI agents must be sponsored and owned by business functions.
+ 
+2.	Use Case Qualification Criteria
+Definition: Standardized checklist to assess whether an AI use case is viable, valuable, and safe to deploy.
+	Dimension	Gate Criterion
+1	Strategic Fit	OKR-linked & sponsor-signed benefit ≤ 90 days
+2	Process Health	≤ 10 steps; ≥ 80 % steps owned & SLA-instrumented
+3	Variability	≤ 1 major change/90 days
+4	Data Readiness (CQM)	≥ 75 % complete + provenance/risk tags
+5	Risk & Controls	Level 3 preventive controls designed pre-build
+6	Human-in-Loop	RACI defined; override latency ≤ 2 hrs
+7	Leading Metrics	Leading KPI defined & logged in Control-Tower
+
+3.	Automation Decision Tree 
+Definition: A framework to choose between automation types (RPA, RDA, Agentic AI) based on complexity, adaptability, and risk.
+1.	Volume & Complexity:
+o	High volume (> 1 000 transactions/day) and low complexity (≤ 5 decision points) → RPA.
+o	Moderate volume (100–1 000/day) with semi structured inputs → RDA.
+o	Dynamic, unstructured, or high cognitive workloads → Agentic AI.
+2.	Rule Maturity:
+o	Fully documented, stable business rules → RPA or RDA.
+o	Evolving or tacit rules requiring NLP extraction → Agentic AI with Rule Repository integration.
+3.	Exception Rate:
+o	Exception rate < 5 % → RPA.
+o	5 – 20 % → RDA.
+o	 20 % or unpredictable exceptions → Agentic AI.
+Use: Helps teams select the simplest and most effective automation type for each use case, avoiding misuse of GenAI.
+Scope:
+•	Fit analysis based on complexity, variability, and risk
+•	Prevents misuse of GenAI for low-value automations
+•	Connects to agent design and resource allocation
+Example:
+Use Case	Complexity	Variability	Risk	Fit
+Invoice coding	Low	Low	Low	RPA
+Policy reminder bot	Medium	Medium	Medium	RDA
+Onboarding orchestration	High	High	High	Agentic AI
+"For each qualified use case, AURA recommends the use of an Automation Decision Tree to guide appropriate technology selection (RPA, RDA, or Agentic AI). Artifact templates — including scoring cards and automation fit reports — are available in the AURA Playbook."
+4.	Agent Readiness Gate 
+Purpose:
+The Agent Readiness Gate is a formal pre-development checkpoint that confirms all foundational criteria are in place before any AI agent build begins. It ensures the agent is aligned to business value, equipped with reliable data, connected to risk controls, and fully observable via MCP tagging. This applies to all agent types (L1–L4) and is required for both internal and third-party agents.
+Section A. Structured Gate for Deployment Readiness
+Definition : A structured, step-by-step gate that ensures every prerequisite is in place before an agent is built or deployed. This prevents rework, embeds governance early, and aligns technical design with business needs.
+•	When to Use:
+o	Pre-Project Kickoff
+o	Prior to Design Workshops
+o	Before Code or Config Development
+•	Outcome:
+A fully documented, auditable, and approved agent profile that is safe to move into the Design & Development phase.
+Summary of What the Playbook Covers:
+•	Step-by-step workflow table (phases, activities, owners, artifacts)
+•	Required inputs and outputs for gate approval
+•	RACI matrix for cross-functional alignment (business, risk, data, tech)
+•	Links to downloadable templates (process profile, risk scorecard, escalation paths, MCP tags, etc.)
+•	Sample Agent Readiness Report output and sign-off format
+
+Section B : Digital Coworker Operating Model
+Purpose: To treat AI agents as supervised digital coworkers, onboarded with the same rigor as humans.
+Workforce Principle	Agent Implementation
+Job Role	Classify the agent (L1–L4) and clearly document its decision scope.
+Reporting Line	Assign a Business Sponsor and a Monitoring Owner (HITL/HOTL as needed).
+Access & Data Policy	Enforce MCP tagging, CQM validation, and PII masking on all inputs.
+Onboarding Checklist	Use the Structured Gate workflow to validate readiness.
+Performance Metrics	Define KPIs such as decision throughput, error/override rates, SLAs.
+Org Registry Entry	Register the agent in your central Agent Registry or HRMS portal.
+
+•	This embeds the governance-heavy, audit-ready onboarding you designed.
+•	This bridges technical governance with cultural enablement (see Section 22: People Readiness), reinforcing agents as operational, traceable, and accountable digital entities with the technical framework (MCP, CQM, agent class).
+Summary of What the Playbook Covers:
+•	A reusable digital coworker model table (job role → classification, reporting → supervision mode)
+•	Example change management language for onboarding comms
+•	Optional persona cards (business sponsor, architect, compliance analyst)
+•	Mapping to Control Modes (HITL/HOTL) and agent escalation patterns
+•	Guidelines for registering agents into a central Agent Registry or HRMS-like index
+Note: The full Agent Readiness Checklist, HR onboarding example, and implementation steps are included in the AURA Playbook under Section 4.1.
+
+Agent Design & Oversight
+5.	AI Agent Classification Model (L1–L5)
+Definition: A five level model that categorizes agents by autonomy, complexity, and risk — guiding oversight, governance, and design.
+Level	Type	Description	Example
+L1	Informational	Retrieves structured or semi-structured answers from systems	HR benefits bot, FAQ assistant
+L2	Transactional	Executes predefined tasks based on user input	IT password reset, invoice routing
+L3	Conversational	Maintains context over multi-step interactions	Retirement planner assistant
+L4	Autonomous	Orchestrates tasks, makes decisions, escalates as needed	Policy triage bot, audit prep agent
+Future L5	Strategic Adaptive Agent	Continuously monitor and re-plan across domains, self-optimize workflows, and coordinate emergent behaviors	Enterprise-wide Onboarding Orchestrator (dynamic SLA negotiation)
+Defines when an AI “becomes agentic” (i.e. goal-seeking, autonomous).
+•	L1–L3: Assistive tiers (informational, transactional, conversational).
+•	L4 – Autonomous Agent (first truly “agentic” tier):
+o	Orchestrates end-to-end workflows, makes decisions, escalates when needed.
+o	Example: Policy-triage bot.
+•	Future L5 – Strategic Adaptive Agent (advanced agentic):
+o	Continuously re-plans across domains, self-optimizes, coordinates emergent behavior.
+
+6.	Design & Development Principles
+Definition: AURA’s foundational design standards ensure that agents are scalable, governed, inclusive, and user-centered.
+•	Human-Centric: Agents assist, not replace; include override and escalation mechanisms.
+•	Modular & Scalable: Build components that can be reused across teams and processes.
+•	Governed Intelligence: Agents follow embedded rules for legal, compliance, and business logic.
+•	Inclusive & Accessible: Ensure bilingual (EN/FR) and accessibility-compliant agent interfaces.
+7.	Control Mode Matrix 
+
+Definition: Categorizes agents by the level of human oversight required.
+Use: Ensures each agent is deployed with the right supervision based on its autonomy tier (L1–L4) and risk profile.
+Agent Role / Example Agents	Agent Level	Control Type	Human Role
+Conductor
+HR Orchestration Agent	L4	Human-above-the-loop	Supervise & override
+Notifier
+Manager Notification Agent	L3	Human-on-the-loop	Monitor & escalate
+Task Agents
+IT Provisioning, Identity Verification,
+Orientation Scheduling, Benefits, Equipment Delivery, Payroll Setup	L3	Human-on-the-loop	Monitor & escalate
+Validation Agents
+Compliance Training Agent	L1–L2	Human-in-the-loop	Confirm & approve
+•	L1–L2 / Human-in-the-loop:
+Agents that provide information or draft actions but require explicit human confirmation before proceeding (e.g., initial compliance recommendations).
+•	L3 / Human-on-the-loop:
+Agents that execute autonomously within defined boundaries but are continuously monitored, with humans stepping in on anomalies or escalations (e.g., routine provisioning, notifications).
+•	L4 / Human-above-the-loop:
+Fully autonomous orchestrators that manage workflows end-to-end—humans oversee overall performance and only intervene to override or adjust strategy when necessary (e.g., HR Orchestration Agent).
+Role Definitions -
+•  Conductor
+•	Orchestrates end-to-end workflows
+•	Maintains global context and state
+•	Invokes and sequences specialist sub-agents
+•	Handles high-level exception escalation and overrides
+•  Task Agent
+•	Performs discrete operational tasks (e.g., provisioning accounts, booking sessions)
+•	Executes autonomously within defined boundaries (L3)
+•	Monitored by humans, with escalation on errors
+•  Notifier
+•	Crafts and sends stakeholder communications (reminders, invites, alerts)
+•	Ensures messages use approved, CQM-governed templates
+•	Tracks delivery status and escalates failures
+•  Validation Agent
+•	Verifies critical inputs (e.g., identity documents, compliance requirements)
+•	Requires explicit human confirmation before action (L1–L2)
+•	Feeds back decisions into the orchestration flow for next steps
+
+
+8.	 Agent Decision Map & Governance
+Definition: Clarifies what types of decisions agents make and how each is governed.
+Use: Provides decision-level governance to ensure traceability and responsible autonomy.
+Types of Decisions:
+•	Retrieval (from content systems)
+•	Task selection (e.g., reset vs. escalate)
+•	Delegation (to another agent)
+Governance:
+•	Each decision must include a rationale (logged via MCP)
+•	Escalation policy required if decision fails or exceeds scope
+
+
+Governance & Risk 
+9.	Governance & the Three Lines of Control
+Definition: Embeds the Three Lines of Defense model to distribute AI oversight across business, risk, and audit functions.
+Line of Defense	Responsibilities	Embedded in AURA
+First Line – Business	Define and sponsor use cases; own outcomes	Agents tied to SLA & ROI; low/no-code with guardrails
+Second Line – Risk & Compliance	Set policy, assess risk, review agent design	Risk checklist; compliance validation checkpoints
+Third Line – Internal Audit	Validate control effectiveness and auditability	Full logging; independent access to models and outputs
+ 
+ 
+10.	Risk Management & Responsible AI
+Definition: Ensures agents are governed by responsible AI principles — protecting privacy, ensuring fairness, and enabling oversight.
+Core Principles
+•	Data Governance: Use only approved, high-quality datasets; mask or remove PII.
+•	Bias Auditing: Monitor and test for fairness across protected groups.
+•	Explainability & Logging: Favor interpretable models; store decision traces and output logs.
+•	Compliance Alignment: Ensure all agents meet OSFI E-23, GDPR, PIPEDA, and AIDA requirements.
+In AURA’s Risk-Tiering Logic, agents are classified from A1 (Low-Impact) through A6 (Transformational) based on their autonomy, impact, and learning behavior. Each tier carries tailored regulatory and governance requirements. Agentic AI starts at A4
+
+Tier	Autonomy & Behavior	Regulatory Impact & Governance
+A1	Informational – Passive retrieval of structured data or simple lookups.	Minimal logging; standard IT change controls.
+A2	Transactional – Executes predefined tasks (e.g., password resets, invoice routing)	Basic MCP tagging; human-in-the-loop approval for non-routine actions; periodic CQM checks.
+A3	Conversational – Maintains multi-step dialogues, context retention (e.g., retirement planner)	MCP snapshots on session start/end; CQM monitoring for bias/toxicity; supervisory (HOTL) oversight.
+A4	Autonomous – Orchestrates workflows end-to-end, makes decisions, escalates as needed (e.g., policy triage)	Full MCP logging; continuous CQM drift and hallucination checks; HITL/HOTL overrides; SLA & ROI reporting.
+A5	Strategic Adaptive – Dynamically re-plans across domains, self-optimizes sub-agents, emergent coordination	Flagged “high-impact” under AIDA; full OSFI E-23 model-risk controls; red-teaming; human-above-the-loop supervision.
+A6	Transformational – Industry-scale agents with systemic impact, continuous learning, market simulation	Requires sandbox simulations; governance board review; real-time audit feeds; kill-switches; executive-level oversight.
+How to Use This Module
+1.	Design Time: Assign an A-tier based on autonomy, data sensitivity, and domain impact.
+2.	Review Time: Verify governance controls—MCP tags, CQM thresholds, oversight modes—match the tier.
+3.	Deployment Time: Enable required logging, red-teaming reports, and escalation workflows (ServiceNow, Control Tower).
+4.	Operation & Audit: Monitor tier-specific signals (drift, hallucinations, emergent behaviors) and conduct periodic governance reviews.
+Inputs: Agent Scorecard, Use Case Risk Assessment, Data Sensitivity Tags
+Outputs: Tier Classification, Governance Checklist, Audit Artifacts, Escalation & Override Configs
+
+Each agent must pass a Risk Assessment Checklist covering model type, data sensitivity, fallback behavior, and overall risk score.
+11.	Human-in-the-Loop (HITL) vs Human-on-the-Loop (HOTL) 
+AURA Oversight Design
+AURA distinguishes oversight responsibilities based on agent autonomy and risk exposure by embedding graduated human control models into its governance architecture. These include:
+•	Human-in-the-Loop (HITL): Mandatory human review before the agent can act — used for high-risk or regulated decisions (e.g., insurance claims, credit approvals).
+•	Human-on-the-Loop (HOTL): Human monitors but does not block action in real-time — used for autonomous yet supervised tasks (e.g., rebalancing portfolios, internal operations).
+•	Exception-Only: Humans are notified only upon policy breach, anomaly, or threshold escalation — used for low-risk or assistive agents (e.g., research copilots).
+Each AURA agent is assigned an oversight mode during design, which then governs:
+•	Its escalation paths
+•	Fallback mechanisms
+•	Monitoring protocols
+•	And auditability hooks embedded in the MCP, Scorecard, and ServiceNow.
+This module ensures that human governance scales proportionally to agent intelligence, autonomy, and domain sensitivity — aligning directly with risk-tiering and lifecycle guardrails.
+For worksheets, escalation policy templates, and ServiceNow integration samples, refer to the AURA Playbook, Section 4.2 – Oversight Mode & Escalation Design
+12.	Content Governance for Agents 
+Definition: Practices to ensure the quality, lineage, and security of content consumed by agents.
+Use: Ensures that agents operate on trusted, versioned, and privacy-safe data sources to minimize hallucination and compliance risk.
+Scope:
+•	Content Quality Management (CQM) policies
+•	Metadata tagging and trust scoring
+•	PII protection and masking
+Example: A policy agent only pulls approved documents that are trust-ranked and version-controlled.
+13.	Mapping AURA Governance to Canadian Regulatory Frameworks
+AURA natively supports compliance-by-design with major Canadian regulations such as OSFI E-23, AIDA, PIPEDA, and Quebec’s Law 25. It does so through capabilities like agent risk-tiering, MCP-based traceability, CQM-powered data minimization, and policy-aligned agent metadata.
+Detailed mapping tables are available in the AURA Compliance Playbook (Appendix A), including crosswalks to U.S. (NIST AI RMF) and EU (AI Act, GDPR) frameworks.
+How This Module Is Used in Practice
+•	Design time: As part of the agent approval process, use this mapping to check if the agent’s capabilities trigger any regulatory actions (e.g., "Does it involve automated decisions on personal data?" → Law 25 applies).
+•	Review time: Governance teams use the table to verify that documentation and safeguards (e.g., PIA, explainability, fallback) match regional requirements.
+•	Audit time: Internal or external auditors request proof that agent development and deployment aligned with regulatory standards.
+
+14.	Formal PIAs (Privacy Impact Assessments) in AURA
+Summary:
+AURA embeds Privacy Impact Assessments (PIAs) directly into the agent lifecycle, not as a checkbox but as a tier-driven escalation protocol. This ensures all agent behaviors involving personal, health, or regulated data are risk-scored, reviewed, and documented in alignment with PIPEDA, AIDA, Law 25, and other jurisdictional standards.
+
+AURA Implementation:
+Trigger for PIA	Example	AURA Response
+Agent uses identifiable user data	Benefits agent accessing health records	Auto-escalate to Privacy Officer via scorecard
+LLM trained on personal/sensitive data	Training data includes employee chat logs	Flag for PIA and dataset redaction review
+Cross-border data handling	Agent runs inference in US cloud from Canadian input	Trigger region-aware compliance check
+
+Protocols & Safeguards:
+•	Integrated into Scorecard: PIA checkbox with automated flag for agents above a data sensitivity threshold
+•	Risk Tier Escalation: All Tier 1 & Tier 2 agents require privacy gate review before go-live
+•	Linked to MCP: MCP metadata stores PIA status, approver, and date
+•	Reusability Across Agents: If PIA is approved for one use case, re-validation required for reuse or purpose drift
+14.1.  Agent Lifecycle & KPI Telemetry
+A centralized measurement layer that both archives all Gate 0 outputs and provides real-time dashboards of agent health.
+Purpose:
+•	Capture every Gate 0 decision (form + scorecard + remediation tickets) for audit and CI.
+•	Monitor live agent metrics (latency, error rate, cost, throughput) against business SLOs.
+Artifacts & Endpoints:
+1.	Scorecard Repository
+o	Confluence: /AURA/Governance/G4-Agent-Scorecards
+o	Stores all Gate 0 forms, Jira remediation links and “Use-Case Qualification Reports.”
+2.	KPI Dashboard
+o	Control-Tower URL: control-tower.sunlife.com/dashboards/aura-g4-kpi-telemetry
+o	Displays daily/weekly trends, threshold alerts, and drill-down by use-case.
+Process Flow:
+1.	Archive Gate 0 outputs automatically to the Scorecard Repo.
+2.	Ingest daily agent telemetry via the orchestration event bus.
+3.	Surface alerts for anomalies (e.g. error > 1 %, p95 > 3 s) in Slack/PagerDuty.
+4.	Review with Governance CoE in the Quarterly G4 Board meeting; feed back to Gate 0 and Gate 1.
+14.2. Audit & Kill-Switch 
+Why it matters:
+A paired capability that ensures every policy decision is logged immutably, and any mis-behaving agent can be immediately disabled.
+Sub-Capability	Purpose	Artifact / Endpoint
+G2: Audit Logging	Capture every policy evaluation, decision trace, and data access.	• Immutable audit store (s3://aura-g2-audit/) • Splunk dashboard /G2-Audit-Logs
+G3: Kill-Switch	Rapidly suspend or retire any agent instance that violates SLOs, policy, or shows anomalous behavior.	• Compliance run-book PDF (/AURA/Governance/G3-Kill-Switch.pdf) • API endpoint POST /agents/{id}/kill-switch
+Process Flow:
+1.	On every OPA decision (pass/deny), emit an audit event to the G2 log.
+2.	Danger conditions (error > 2 %, PII breach, stale data) fire a G3 kill-switch alert.
+3.	Kill-Switch API call immediately:
+o	Revokes agent’s IAM role
+o	Freezes its memory store
+o	Archives current session to cold storage
+4.	Post-mortem: Compliance CoE reviews the audit log, updates policies, and feeds lessons back into Gate 0/Gate 1.
+Retention: Audit data retained hot for 90 days; cold archive for 7 years.
+Steward: Security Engineering (G2) & Risk Office (G3)
+15.	Auditability + Explainability Logs
+Summary:
+AURA elevates auditability beyond logging events. It ensures every agent decision can be traced from input to output, with a record of contextual influences, retrieved content, and decision paths — all standardized for regulatory inspection.
+
+Key Components:
+Feature	Purpose	How AURA Implements It
+MCP Snapshots	Capture agent version, config, and training context	Stored at each execution instance
+Decision Trace Logging	Log input → reasoning steps → output	Stored in JSONL format for replay
+Fact Source Registry	Record which sources influenced each LLM output	Integrated with retrieval layer (e.g., RAG grounding)
+Agent Role + Oversight Layer	Store who approved or supervised agent action	Pulled from ServiceNow integration
+Standardized Formats	Enable compliance exports	JSON schema aligned to OSFI E-23, AIDA, GDPR standards
+Audit Outputs for Inspection:
+•	Timestamped logs
+•	Input payload
+•	Grounded references
+•	Confidence level
+•	Agent version
+•	Escalation path (if any)
+•	Output and user action taken
+All logs are replayable for forensic simulation and regulatory audits.
+Implementation Details: See AURA Playbook, Section 14 – Auditability + Explainability Logs for logging schema, replay engine templates, and compliance export formats.
+
+Technical Controls 
+16.	Model Context Protocol (MCP) Compliance
+Definition: The Model Context Protocol (MCP) is a structured metadata layer that ensures every AI agent interaction is transparent, traceable, and governable. It captures an agent’s runtime context, user input, system state, and data sensitivity — supporting auditability, handoffs, and responsible execution.
+ 
+16.1	AgentContext Object
+Purpose: Captures the state, intent, session data, and system status during an agent interaction. Enables traceability and replay for audits or failure analysis.
+Example:
+json
+CopyEdit
+{
+  "agent_id": "Agent_ClientPlanning_L3_Retirement",
+  "intent": "plan_retirement",
+  "context_snapshot": {
+    "last_input": "What can I contribute monthly?",
+    "system_state": "RetirementPlanner_v2:active"
+  },
+  "user_id": "USR_00231",
+  "timestamp": "2025-07-04T13:25:00Z"
+}
+ 
+16.2	AgentHandoff Protocol
+Purpose: Defines how control is transferred between agents while maintaining state integrity and secure execution boundaries.
+•	Context and intent must be securely transferred.
+•	Receiving agent must validate its execution scope before acting.
+•	All handoffs must be logged and audit-traceable.
+ 
+16.3	ModelContext Tags
+Purpose: Provide machine-readable annotations for compliance, execution control, and risk classification.
+Tag	Description
+context_source	Origin of context: user input, profile, RAG vector
+execution_scope	Agent permission: read-only, update, escalation
+escalation_policy	Rule for fallback to human oversight
+data_sensitivity	Classification: public, internal, PII, restricted
+ 
+The MCP acts as the backbone of explainability, oversight, and safe multi-agent collaboration in AURA. It makes agent actions traceable, handoffs secure, and decisions defensible — aligning tightly with governance, audit, and LLMOps workflows. MCP compliance is mandatory for all L3–L4 agents and strongly recommended for L2 deployments with personal or regulated data.
+17.	Tech–Business Convergence Layer  
+Definition: The connective structure where technical delivery and business ownership meet.
+Use: Ensures joint ownership of agent outcomes, continuous feedback, and co-developed journeys.
+Scope:
+•	Shared outcome metrics (e.g., onboarding time)
+•	Co-design journey maps
+•	Joint control over feedback loops and retraining
+Example: Retirement assistant agent is owned by business, fine-tuned by CoE, and monitored jointly.
+18.	Third-Party AI Vendor Governance in AURA
+As enterprise AI ecosystems increasingly rely on external AI services (e.g., APIs, SaaS tools, System Integrator-built agents), AURA extends its governance model to enforce third-party control, traceability, and risk compliance. This module defines control archetypes, enforces contractual safeguards, and provides a certification model for integrating third-party AI responsibly and legally.
+Each vendor model (build, buy, or partner) maps to a tailored oversight strategy — from full internal lifecycle controls to black-box monitoring and joint governance for co-developed agents.
+Use this module whenever AI capabilities are sourced externally—such as via APIs, SaaS tools, or vendor-built agents—especially when you lack full control over model internals or are operating in regulated domains (e.g., financial, healthcare). It ensures proper governance, risk certification, and legal compliance before deployment.
+
+Inputs (What You Need)
+•	Vendor Type & Source (Internal, API, SaaS, SI Partner)
+•	Use Case Description (function, risk, data type)
+•	Country of Deployment (to check jurisdictional fit)
+•	Model Documentation (model cards, version, training data info)
+•	MCP & Scorecard Metadata (tier, PIA, oversight mode)
+•	Third-Party Contract Terms (to enforce compliance obligations)
+ 
+Outputs (What This Module Produces)
+•	Control Archetype Classification (governance model assigned)
+•	Certification Checklist Completion (CQM, MCP, PIA, Security)
+•	Third-Party Risk Register Entry (6-domain risk logging)
+•	Fallback Strategy or Guardrail Configuration (if external model fails)
+•	Region-Specific Compliance Overlay (e.g., AIDA triggers)
+•	Governance Clauses for Contracts (to insert into vendor terms)
+
+ For certification templates, vendor risk checklists, contracting clause samples, and fallback design patterns, refer to the AURA Playbook, Section 18 – Third-Party AI Governance Toolkit.
+
+Scale & Measurement
+19.	Scaling Roadmap 
+Definition: A phased roadmap for Agentic AI capability adoption across the enterprise.
+Use: Provides a guided maturity path from initial agent pilots to advanced orchestration.
+Phases:
+•	Phase 1: Single-agent, single-function (e.g., IT bot)
+•	Phase 2: Multi-turn agents with escalation (L3)
+•	Phase 3: Multi-agent orchestration (L4)
+
+
+20.	Scenario Stress Testing for Agents
+ 
+Summary - This module ensures that agents can handle unexpected, degraded, or adversarial conditions reliably. Integrated into AURA’s Measurement Layer, it validates resilience, failover, and recovery mechanisms—critical for high-impact and automated enterprise operations.
+For test templates, prompt injection libraries, and sample resilience scorecards, see the AURA Playbook, Section x – Scenario Stress Testing Toolkit. 
+
+21.	Employee Training for Agentic AI: AURA’s People Readiness Stream
+This module ensures that human stakeholders are trained, informed, and accountable when interacting with agents — especially as autonomy rises (L1–L4). AURA embeds persona-specific training, cultural change levers, and shared responsibility into the deployment lifecycle. Governance is incomplete without people readiness.
+•  Why:
+•	Builds trust and safe usage of AI agents
+•	Ensures users understand oversight, escalation, and accountability
+•	Supports regulatory compliance through training evidence
+•  When to Use:
+•	During agent rollout (esp. Tier 1/2 or L3/L4)
+•	Before audits or compliance checks
+•	When deploying agents into business-critical workflows
+•  Inputs:
+•	Agent Fact Sheets
+•	MCP metadata + Agent Scorecard
+•	Role matrix (who uses or supervises agent)
+•  Outputs:
+•	Persona-based training modules
+•	Escalation ownership paths
+•	Adoption KPIs (e.g., % trained)
+
+🔗 For detailed training templates, adoption KPIs, and red team playbooks, see the AURA Playbook, Section 7.1 – People Readiness Toolkit.
+
+22.	Real-time Monitoring + Adaptive Controls in AURA
+Summary:
+This module embeds continuous supervision into AURA’s architecture. Rather than relying on post-failure analysis, it introduces real-time signal detection (e.g., hallucination spikes, drift, latency) and dynamic controls (e.g., fallback, agent switching, escalation). The AURA Control Tower orchestrates these signals, ensuring agents remain compliant, performant, and ethically bounded — even in live environments. This module is essential for enterprise-grade agents (L3–L4) where adaptive, risk-aware behavior is non-negotiable.
+•	Why:
+o	Enables proactive governance of autonomous agents
+o	Prevents failure escalation through live telemetry and adaptive responses
+o	Supports regulatory expectations for continuous supervision (e.g., OSFI, AIDA)
+•	When to Use:
+o	For Tier 1–2 or L3–L4 agents in production
+o	When agents impact regulated decisions or mission-critical workflows
+o	During compliance reviews requiring real-time observability
+•	Inputs:
+o	Live agent telemetry (drift, confidence, latency, toxicity signals)
+o	MCP metadata (model version, training provenance)
+o	Control thresholds + escalation rulesets
+•	Outputs:
+o	Dynamic alerts and auto-throttle triggers
+o	Agent fallback or switch activation
+o	Replay logs for audits and scenario simulations
+o	Supervisory dashboards and policy enforcement logs
+Playbook includes: Control Tower setup, drift signal maps, escalation rules, and adaptive remediation templates.
+
+ 
+23.	Market Behavior Simulation for L4 Agents
+L4 strategic agents operate across domains and influence high-stakes decisions — such as pricing, capital flows, or system-wide planning. These agents can unintentionally coordinate, leading to risks like herding, volatility, or cascading actions. AURA introduces a controlled simulation sandbox to pre-test these agents under real-world stress, ensuring behavioral diversity, safe decision pacing, and systemic risk mitigation. Market simulation is a mandatory gate for any L4 agent entering production.
+Why Use This Module
+•	To identify systemic risks from autonomous agents making strategic, cross-domain decisions
+•	To prevent emergent behaviors like price convergence, herding, or temporal cascades
+•	To ensure agent actions do not create unintended market shocks or volatility
+When to Use This Module
+•	When deploying L4 strategic agents (e.g., for pricing, capital allocation, forecasting)
+•	Before production deployment of agents that influence market-like dynamics
+•	When simulating multi-agent environments with overlapping goals
+•	During design-time reviews or regulatory pre-approval cycles
+Input Artifacts
+•	Agent design specifications (goals, output types, execution cadence)
+•	Shared LLM model configurations + training history via MCP
+•	Synthetic user persona library or market model assumptions
+•	Baseline KPIs to track systemic impact (e.g., pricing, churn, liquidity)
+Output Artifacts
+•	Market Simulation Report (highlighting coordination or volatility risks)
+•	Decision Containment Configuration (rate limits, memory firewalls)
+•	Scenario Replay Logs (for audit and fine-tuning)
+•	Deployment readiness signal (pass/fail based on herding and timing risk thresholds)
+🔗 Details, examples, and sandbox configuration templates are in the AURA Playbook.
+
+24.	Introducing the AURA-Based Layered Architecture (7+2 Model)
+As enterprises scale their adoption of agentic AI, a cohesive architectural foundation becomes critical — not just to manage complexity, but to ensure traceability, safety, and adaptability across evolving use cases. The AURA-Based Layered Architecture (7+2 Model) provides this foundation.
+This architecture is more than a technology stack; it is a governance-aware operating system for AI agents. It recognizes that intelligent agents span user interaction, reasoning, orchestration, and memory — and must do so within boundaries set by policy, risk posture, and enterprise intent.
+Why This Matters Now:
+•	Traditional MLOps and data platforms are not sufficient for autonomous, interactive agents.
+•	Regulations like OSFI E-23, AIDA, and GDPR demand live oversight and tiered control, not just audit logs.
+•	Human trust and operational reliability require observable, resilient, and explainable AI behavior.
+The 7+2 Model at a Glance:
+•	7 horizontal layers define how agents perceive, reason, act, and remember — grounded in enterprise-grade content and workflows.
+•	2 vertical overlays ensure that all activity is governed and continuously improved through feedback loops and policy enforcement.
+This layered architecture powers AURA’s ability to:
+•	Support both human-in-the-loop (HITL) and human-on-the-loop (HOTL) control models.
+•	Enable Control Tower–based supervision with real-time signals and adaptive responses.
+•	Embed auditability, explainability, and simulation into the agent lifecycle.
+•	Align risk tiering, privacy, and content quality into a modular, extensible agent ecosystem.
+In short, the 7+2 Model translates AURA’s principles into a reference architecture for sustainable, governed AI deployment across enterprise domains.
+AURA 7+2 Architecture – Layer Summary
+Core Layers (7):
+1.	User & Agent Interface – Where users and agents interact via conversational UI and MCP triggers.
+2.	Agent Identity & Reasoning – Defines agent goals, roles, and decision logic.
+3.	Multi-Agent Orchestration – Manages collaboration, task handoffs, and fallback flows between agents.
+4.	LLMOps & Model Lifecycle – Oversees foundation models, RAG, monitoring, and retraining.
+5.	Agent Actions & Workflows – Executes tasks and coordinates with humans as needed.
+6.	Memory & Context – Maintains session history, knowledge, and object relationships.
+7.	Data & Content Layer – Provides structured and unstructured inputs for agent reasoning.
+Cross-Layer Capabilities (2):
+8.	Governance & Policy Enforcement – Applies risk, privacy, and audit controls across all layers.
+9.	Feedback & Learning Loop – Uses signals and outcomes to continuously improve agent performance.
+
+
+Shorthand	Full Name / Description
+Gate 0	Use-Case Qualification Gate Pre-build checkpoint validating viability, value, and safety.
+AURA-P1	Planning Phase 1: Design & Solution Architecture Detailed process designs, blueprints & tech specs.
+AURA-P2	Planning Phase 2: Continuous Improvement Post-mortem RCA, feedback loops back into Gate 0.
+AURA-D1	Data Layer 1: Context-Enriched Ingestion Chunking, vectorisation & provenance tagging.
+AURA-D2	Data Layer 2: Metadata & Ontology / CQM Scorecards Business & technical metadata models; quality scoring.
+AURA-D3	Data Layer 3: Content Mesh & Vector Store GraphQL gateway, domain hubs, and certified context edges.
+AURA-O2	Orchestration Layer 2: Event Bus & Saga Manager Domain-event coordination, ordering & compensations.
+AURA-O3	Orchestration Layer 3: Memory Store & Context Tokens Secure context JWTs, vector‐cache, session state.
+AURA-G2	Governance Layer 2: Audit Logging Immutable decision & policy evaluation logs for compliance.
+AURA-G3	Governance Layer 3: Kill-Switch & Compliance Run-Book Emergency disablement API + procedures.
+AURA-G4	Governance Layer 4: Agent Lifecycle & KPI Telemetry Scorecards repo + live dashboards of agent health.
+AURA-M1	Model & Logic 1: Rule Repository Centralized store of decision trees, rules & version metadata.
+AURA-M2	Model & Logic 2: Strangler Adapters Legacy-system wrappers and incremental rule extraction.
+
+ 
+ 
