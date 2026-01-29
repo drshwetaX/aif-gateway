@@ -1,0 +1,109 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AIF Gateway (Service)",
+    "version": "1.0.0",
+    "description": "Service endpoints for external agents to check execution eligibility and governance state."
+  },
+  "servers": [
+    { "url": "https://aifgateway.fivra.ai" }
+  ],
+  "paths": {
+    "/api/agents/check": {
+      "post": {
+        "summary": "Check whether an agent may execute right now",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent_id": { "type": "string", "description": "Registry id (e.g., agent_... or foundry_...)" },
+                  "externalAgentId": { "type": "string", "description": "Optional external id (e.g., Foundry agent id)" },
+                  "heartbeat": { "type": "boolean", "description": "If true, updates last_seen_at + last_check_at" },
+                  "meta": { "type": "object", "additionalProperties": true }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "allow": { "type": "boolean" },
+                    "reason": { "type": "string" },
+                    "agent": { "type": "object", "additionalProperties": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Check with querystring (agent_id)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "externalAgentId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "heartbeat",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["1", "0", "true", "false"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "CheckResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "allow": { "type": "boolean" },
+          "reason": { "type": "string" },
+          "agent": { "type": "object", "additionalProperties": true }
+        }
+      }
+    }
+  }
+}
