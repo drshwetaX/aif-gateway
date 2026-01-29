@@ -8,12 +8,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const agents = await listAgents();
-
-  agents.sort((a: any, b: any) =>
-    String(b.requested_at || b.created_at || "").localeCompare(
-      String(a.requested_at || a.created_at || "")
-    )
-  );
-
   return res.status(200).json({ ok: true, agents });
 }
