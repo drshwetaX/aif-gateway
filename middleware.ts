@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/api/openapi",
   "/api/openapi.json",
   "/api/run",
+  "/api/foundry",
 ];
 
 export function middleware(req: NextRequest) {
