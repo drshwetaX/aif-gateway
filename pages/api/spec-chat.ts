@@ -16,8 +16,10 @@ function nowIso() {
 }
 
 function loadAuraTxtPath() {
-  return path.join(process.cwd(), "policy", "aura.txt");
+  // aura.txt is at repo root
+  return path.join(process.cwd(), "aura.txt");
 }
+
 
 function getPolicyText() {
   if (cachedText) return cachedText;
