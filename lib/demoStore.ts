@@ -33,6 +33,48 @@ export async function addAgent(agent: Agent) {
   store.agents.unshift(agent);
   return agent;
 }
+// ---- Decisions (demo-friendly in-memory) ----
+
+export type Decision = {
+  id: string;                 // decision id (or same as agent id, depending on your app)
+  agentId?: string;
+  decision: "ALLOW" | "DENY" | "PENDING" | string;
+  decided_at?: string;
+  decided_by?: string;
+  reason?: string;
+  notes?: string;
+  [key: string]: any;
+};
+
+if (!g.__DEMO_STORE_DECISIONS__) {
+  g.__DEMO_STORE_DECISIONS__ = {
+    decisions: [] as Decision[],
+  };
+}
+const decisionStore = g.__DEMO_STORE_DECISIONS__ as { decisions: Decision[] };
+
+export async function getDecision(id: string): Promise<Decision | null> {
+  return decisionStore.decisions.find((d) => d.id === id) ?? null;
+}
+
+/**
+ * Update a decision by id (creates it if missing).
+ * This matches typical "updateDecision" semantics used by demo APIs.
+ */
+export async function updateDecision(
+  id: string,
+  patch: Partial<Decision> & { id?: string }
+): Promise<Decision> {
+  const idx = decisionStore.decisions.findIndex((d) => d.id === id);
+  if (idx === -1) {
+    const created: Decision = { id, decision: "PENDING", ...patch, id: id };
+    decisionStore.decisions.unshift(created);
+    return created;
+  }
+  const updated: Decision = { ...decisionStore.decisions[idx], ...patch, id };
+  decisionStore.decisions[idx] = updated;
+  return updated;
+}
 
 export async function listAgents(): Promise<Agent[]> {
   return store.agents;
