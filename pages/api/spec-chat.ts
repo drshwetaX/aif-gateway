@@ -2,37 +2,32 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs";
 import path from "path";
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const mammoth = require("mammoth");
-
 
 type ChatReq = {
   question: string;
-  agentSpec?: any; // register response JSON
+  agentSpec?: any;
 };
 
-let cachedDocText: string | null = null;
+let cachedText: string | null = null;
 let cachedChunks: string[] | null = null;
 
-function loadDocxAbsolutePath() {
-  // ✅ Adjust if your doc is elsewhere
-  // If the file is at repo root: /Aura_framework_v1.6.docx
-  // If it’s inside /aif-gateway/ in your local machine, put it at repo root for Vercel
-  const p = path.join(process.cwd(), "Aura_framework_v1.6.docx");
-  return p;
+function nowIso() {
+  return new Date().toISOString();
 }
 
-async function getDocText(): Promise<string> {
-  if (cachedDocText) return cachedDocText;
-
-  const docPath = loadDocxAbsolutePath();
-  const buf = fs.readFileSync(docPath);
-  const res = await mammoth.extractRawText({ buffer: buf });
-  cachedDocText = (res.value || "").replace(/\r/g, "").trim();
-  return cachedDocText!;
+function loadAuraTxtPath() {
+  return path.join(process.cwd(), "policy", "Aura_framework_v1.6.txt");
 }
 
-function chunkText(text: string, chunkSize = 900, overlap = 120) {
+function getPolicyText() {
+  if (cachedText) return cachedText;
+  const p = loadAuraTxtPath();
+  const text = fs.readFileSync(p, "utf8");
+  cachedText = (text || "").replace(/\r/g, "").trim();
+  return cachedText!;
+}
+
+function chunkText(text: string, chunkSize = 1200, overlap = 150) {
   const clean = text.replace(/\n{3,}/g, "\n\n");
   const out: string[] = [];
   let i = 0;
@@ -56,19 +51,20 @@ function tokenize(s: string) {
 
 function scoreChunk(question: string, chunk: string) {
   const q = new Set(tokenize(question));
-  const c = tokenize(chunk);
   let hit = 0;
-  for (const w of c) if (q.has(w)) hit++;
+  for (const w of tokenize(chunk)) if (q.has(w)) hit++;
   return hit;
 }
 
-function selectTopChunks(question: string, chunks: string[], k = 5) {
-  const scored = chunks
+function selectTopChunks(question: string, chunks: string[], k = 6) {
+  return chunks
     .map((ch) => ({ ch, score: scoreChunk(question, ch) }))
-    .sort((a, b) => b.score - a.score);
-  return scored.slice(0, k).map((x) => x.ch);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k)
+    .map((x) => x.ch);
 }
 
+// Optional: LLM call (only if key exists)
 async function callOpenAI(prompt: string) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -88,7 +84,7 @@ async function callOpenAI(prompt: string) {
         {
           role: "system",
           content:
-            "You are a governance assistant. Answer using ONLY the provided policy excerpts and agent spec. If not found, say you cannot find it in the policy.",
+            "Answer ONLY using the provided Aura framework excerpts and agent spec JSON. If not found, say: Not found in provided policy/spec.",
         },
         { role: "user", content: prompt },
       ],
@@ -96,9 +92,7 @@ async function callOpenAI(prompt: string) {
   });
 
   const j: any = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    throw new Error(j?.error?.message || `LLM call failed (HTTP ${r.status})`);
-  }
+  if (!r.ok) throw new Error(j?.error?.message || `LLM call failed (HTTP ${r.status})`);
   return j?.choices?.[0]?.message?.content?.trim() || "";
 }
 
@@ -115,37 +109,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!question) return res.status(400).json({ ok: false, error: "question required" });
 
-    const text = await getDocText();
+    const text = getPolicyText();
     if (!cachedChunks) cachedChunks = chunkText(text);
 
-    const top = selectTopChunks(question, cachedChunks!, 5);
+    const top = selectTopChunks(question, cachedChunks!, 6);
 
     const prompt =
+      `TS: ${nowIso()}\n\n` +
       `QUESTION:\n${question}\n\n` +
       `AGENT_SPEC_JSON:\n${JSON.stringify(agentSpec, null, 2)}\n\n` +
-      `AURA_POLICY_EXCERPTS (use these as your only source):\n` +
+      `AURA_EXCERPTS (only source of truth):\n` +
       top.map((t, i) => `--- EXCERPT ${i + 1} ---\n${t}`).join("\n\n") +
       `\n\nINSTRUCTIONS:\n` +
-      `- Answer clearly and concisely.\n` +
-      `- If the question asks “what is A4”, use the policy excerpt definition (not a generic answer).\n` +
-      `- If not present in excerpts/spec, say “Not found in provided policy/spec.”\n`;
+      `- Provide a direct answer.\n` +
+      `- Cite which excerpt number(s) you used.\n` +
+      `- If the answer is not in excerpts/spec, say: Not found in provided policy/spec.\n`;
 
-    // If key exists -> real LLM answer, grounded
-    const llmAnswer = await callOpenAI(prompt);
+    const llm = await callOpenAI(prompt);
 
-    if (llmAnswer) {
-      return res.status(200).json({
-        ok: true,
-        answer: llmAnswer,
-        grounded_excerpts: top,
-      });
+    if (llm) {
+      return res.status(200).json({ ok: true, answer: llm, grounded_excerpts: top });
     }
 
-    // No API key -> return excerpts + guidance (still useful)
+    // No key → still return excerpts
     return res.status(200).json({
       ok: true,
       answer:
-        "No OPENAI_API_KEY configured. Here are the most relevant policy excerpts; add an LLM key to generate natural-language answers.",
+        "OPENAI_API_KEY not set. Here are the most relevant Aura excerpts for your question (enable an LLM key for natural-language answers).",
       grounded_excerpts: top,
     });
   } catch (e: any) {
