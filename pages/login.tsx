@@ -1,21 +1,19 @@
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
 
-  // Compute a safe redirect target:
-  // - wait for router.isReady so query params are actually available
-  // - only allow internal paths starting with "/"
-  const rawNext =
-    router.isReady && typeof router.query.next === "string"
-      ? router.query.next.trim()
-      : "";
+  const nextPath = useMemo(() => {
+    const raw =
+      router.isReady && typeof router.query.next === "string"
+        ? router.query.next.trim()
+        : "";
 
-  const nextPath =
-    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
-      ? rawNext
-      : "/console/registry";
+    // only allow internal relative paths
+    if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+    return "/console/registry";
+  }, [router.isReady, router.query.next]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,13 +33,11 @@ export default function LoginPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         setErr(data?.error || `Login failed (HTTP ${res.status})`);
         return;
       }
 
-      // Success → go where the user originally intended
       router.replace(nextPath);
     } catch {
       setErr("Network error");
@@ -51,78 +47,67 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 520,
-          border: "1px solid #e5e5e5",
-          borderRadius: 12,
-          padding: 20,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 26 }}>AIF Gateway</h1>
-        <p style={{ marginTop: 8, color: "#555", lineHeight: 1.4 }}>
-          This demo shows: <b>Agent Registry</b> → <b>Classification</b> →{" "}
-          <b>Controls</b> → <b>Override</b> → <b>Audit</b>.
-        </p>
+    <main className="min-h-screen bg-zinc-50 text-zinc-900">
+      <div className="mx-auto grid min-h-screen max-w-6xl grid-cols-1 gap-6 px-6 py-10 md:grid-cols-2 md:items-center">
+        {/* Left panel */}
+        <section className="rounded-2xl border bg-white p-8 shadow-sm">
+          <h1 className="text-3xl font-semibold tracking-tight">AIF Gateway</h1>
+          <p className="mt-3 text-zinc-600">
+            Policy decision simulator: tiering + controls + audit trail (executive-ready).
+          </p>
 
-        <form
-          onSubmit={onSubmit}
-          style={{ display: "grid", gap: 12, marginTop: 14 }}
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email (allowlisted)"
-            autoComplete="email"
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #ccc",
-            }}
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Demo password"
-            autoComplete="current-password"
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #ccc",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={loading || !password || !email}
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: "none",
-              cursor: loading ? "default" : "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
+          <div className="mt-6 space-y-3 text-sm text-zinc-700">
+            <div className="rounded-xl border bg-zinc-50 p-4">
+              <div className="font-medium text-zinc-900">What you’ll see</div>
+              <div className="mt-2">
+                <b>Agent Registry</b> → <b>Classification</b> → <b>Controls</b> →{" "}
+                <b>Override</b> → <b>Audit</b>
+              </div>
+            </div>
 
-        {err && <p style={{ marginTop: 12, color: "#b00020" }}>{err}</p>}
+            <div className="rounded-xl border bg-zinc-50 p-4">
+              <div className="font-medium text-zinc-900">After login</div>
+              <div className="mt-2">
+                You’ll be redirected to: <span className="font-mono">{nextPath}</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        {/* Optional: helpful for debugging */}
-        {/* <pre style={{ marginTop: 12, fontSize: 12, color: "#777" }}>
-          nextPath: {nextPath}
-        </pre> */}
+        {/* Right panel (login) */}
+        <section className="rounded-2xl border bg-white p-8 shadow-sm">
+          <div className="text-sm font-medium text-zinc-500">Sign in</div>
+
+          <form onSubmit={onSubmit} className="mt-4 grid gap-3">
+            <input
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 outline-none focus:border-zinc-400"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (allowlisted)"
+              autoComplete="email"
+            />
+
+            <input
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 outline-none focus:border-zinc-400"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Demo password"
+              autoComplete="current-password"
+            />
+
+            <button
+              className="mt-2 w-full rounded-xl bg-zinc-900 px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={loading || !password || !email}
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+
+          {err && <p className="mt-4 text-sm text-red-700">{err}</p>}
+        </section>
       </div>
     </main>
   );
