@@ -3,6 +3,7 @@ import { resolveTier, controlsForTier } from "@/lib/policy/policyEngine";
 import { buildIntent } from "@/lib/policy/intent";
 import { writeAudit } from "@/lib/audit/audit";
 import { getAgent } from "@/lib/demoStore";
+import { getActiveOverrideForAgent } from "@/lib/overrideStore";
 
 function nowIso() {
   return new Date().toISOString();
@@ -58,8 +59,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
-  const tier = agent.tier ?? computedTier;
-  const controls = agent.controls ?? computedControls;
+  // --- Apply governed override if active ---
+  const activeOverride = getActiveOverrideForAgent(agentId);
+  const tier = (activeOverride?.requestedTier || agent.tier || computedTier) as any;
+  const controls = agent.controls ?? controlsForTier(tier);
 
   if (agent.status === "paused") {
     writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_paused", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
@@ -77,13 +80,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (controls?.approvalRequired && !approvedFlag) {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "approval_required", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "This action requires approval per policy controls.", ts: nowIso(), tier, controls, intent });
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "approval_required", agentId, intent, tier, controls, latency_ms: latency_ms(), env, override_id: activeOverride?.id || null });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "This action requires approval per policy controls.", ts: nowIso(), tier, controls, intent, override_id: activeOverride?.id || null });
   }
 
   if (controls?.sandboxOnly && env !== "sandbox") {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "sandbox_only", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "sandbox_only", rationale: "This action is restricted to sandbox per policy controls.", ts: nowIso(), tier, controls, intent });
+    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "sandbox_only", agentId, intent, tier, controls, latency_ms: latency_ms(), env, override_id: activeOverride?.id || null });
+    return res.status(403).json({ ok: false, decision: "DENIED", error: "sandbox_only", rationale: "This action is restricted to sandbox per policy controls.", ts: nowIso(), tier, controls, intent, override_id: activeOverride?.id || null });
   }
 
   writeAudit({
@@ -98,6 +101,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     controls,
     latency_ms: latency_ms(),
     env,
+    override_id: activeOverride?.id || null,
+    override_applied: !!activeOverride,
     tokens_in: 0,
     tokens_out: 0,
     cost_usd: 0,
@@ -111,5 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     tier,
     controls,
     intent,
+    override_id: activeOverride?.id || null,
+    override_applied: !!activeOverride,
   });
 }
