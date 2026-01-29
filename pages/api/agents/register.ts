@@ -5,6 +5,10 @@ import { loadAuraPolicy } from "@/lib/policy/loadPolicy";
 import { writeAudit } from "@/lib/audit/audit";
 import { upsertAgent } from "@/lib/demoStore";
 
+const env = body?.env ? String(body.env) : "test";
+const stage = body?.stage ? String(body.stage) : "poc";
+const comment = body?.comment ? String(body.comment) : "";
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -124,6 +128,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     created_at: nowIso(),
     requested_at: nowIso(),
     approved_at: null,
+    stage,
+      comment,
+      requested_at: nowIso(),
 
     // registry metadata
     env,
@@ -136,7 +143,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     controls,
     allowed_tools,
     policy_version: loadAuraPolicy()?.version ?? "unknown",
-    tiering_explain,
+    tiering_explain,env,
+  
 
     review: { decision: "PENDING", decidedAt: null, decidedBy: null, notes: review_notes },
   } as any);
