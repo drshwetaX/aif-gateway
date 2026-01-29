@@ -12,7 +12,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -20,26 +20,32 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const user = String(req.headers["x-demo-user"] || "unknown");
   const { decision_id, notes } = req.body || {};
-  const id = String(decision_id || "");
+  const id = String(decision_id || "").trim();
 
   if (!id) return res.status(400).json({ error: "decision_id required" });
 
-  const d = getDecision(id);
+  const d = await getDecision(id);
   if (!d) return res.status(404).json({ error: "Decision not found" });
 
+  // Keep consistent snake_case timestamps if your types prefer them
   const updated = await updateDecision(id, {
     status: "APPROVED",
-    approvedAt: nowIso(),
-    approvedBy: user,
-    approvedNotes: notes ? String(notes) : undefined,
+    approved_at: nowIso(),
+    approved_by: user,
+    approved_notes: notes ? String(notes) : undefined,
+
+    // Also store the "decision" field if your audit/event logic expects it
+    decision: "ALLOW",
   });
 
-  writeAudit({
+  await writeAudit({
     ts: nowIso(),
     user,
     endpoint: "/api/decisions/approve",
     decision: "ALLOW",
     reason: "decision_approved",
+
+    // keep whatever your AuditEvent expects — these are extra fields and fine
     decision_id: updated.id,
     agentId: updated.agent_id,
     control_mode: updated.control_mode,
@@ -47,7 +53,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     target: updated.target,
     tier: updated.tier,
     policy_version: updated.policy_version,
-  });
+  } as any);
 
   return res.status(200).json({ ok: true, decision: updated });
 }
