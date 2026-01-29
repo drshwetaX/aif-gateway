@@ -87,7 +87,7 @@ export default function RegisterAgentPage() {
       };
       if (overrideTier) payload.override_tier = overrideTier;
 
-      const res = await fetch("/api/agents/classify", {
+      const res = await fetch("/api/agents/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
