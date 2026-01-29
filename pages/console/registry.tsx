@@ -63,7 +63,11 @@ export default function RegisterAgentPage() {
   }
 
   return (
-    <ConsoleShell title="Register agent" subtitle="Problem statement → policy classification → tier + controls.">
+    <ConsoleShell title="Register agent">
+      <p className="mt-2 text-sm text-zinc-600">
+        Problem statement → policy classification → tier + controls.
+      </p>
+
       {err && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
@@ -129,10 +133,6 @@ export default function RegisterAgentPage() {
               Clear
             </button>
           </div>
-
-          <p className="mt-3 text-xs text-zinc-500">
-            Tip: include data access + actions in the problem statement so your classifier can assign tighter controls.
-          </p>
         </div>
 
         <div>
@@ -142,7 +142,8 @@ export default function RegisterAgentPage() {
                 Classification result will appear here.
               </p>
               <p className="mt-2 text-xs text-zinc-500">
-                Returns whatever your <code>/api/agents/register</code> endpoint emits (tier, controls, policy hits, etc.).
+                Returns whatever your <code>/api/agents/register</code> endpoint
+                emits (tier, controls, policy hits, etc.).
               </p>
             </div>
           ) : (
