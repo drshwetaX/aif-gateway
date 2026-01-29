@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ConsoleShell from "@/components/ConsoleShell";
 
 type RegisterResponse = any;
@@ -13,21 +14,21 @@ export default function RegisterAgentPage() {
   const [out, setOut] = useState<RegisterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
   const [agents, setAgents] = useState<any[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
-  
+
   async function refreshRegistry() {
     setLoadingAgents(true);
     try {
       const r = await fetch("/api/agents/list");
-      const j = await r.json();
+      const j = await r.json().catch(() => ({}));
       setAgents(j?.agents || []);
     } finally {
       setLoadingAgents(false);
     }
   }
-  
-  // call once on load
+
   useEffect(() => {
     refreshRegistry();
   }, []);
@@ -73,6 +74,7 @@ export default function RegisterAgentPage() {
       }
 
       setOut(data);
+      await refreshRegistry();
     } catch (e: any) {
       setErr(e?.message || "Register failed");
     } finally {
@@ -93,6 +95,7 @@ export default function RegisterAgentPage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* LEFT: Form + Registry */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wide">
             Name
@@ -151,39 +154,65 @@ export default function RegisterAgentPage() {
               Clear
             </button>
           </div>
-        </div>
-<div className="mt-4 flex items-center justify-between">
-  <h2 className="text-sm font-semibold">Registry</h2>
-  <button
-    onClick={refreshRegistry}
-    className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
-  >
-    {loadingAgents ? "Refreshing…" : "Refresh"}
-  </button>
-</div>
 
-<div className="mt-3 space-y-2">
-  {agents.length === 0 ? (
-    <p className="text-sm text-zinc-600">No agents yet.</p>
-  ) : (
-    agents.map((a) => (
-      <div key={a.id} className="rounded-xl border p-3">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium">{a.name}</div>
-          <div className="text-xs text-zinc-600">{a.tier}</div>
-        </div>
-        <div className="mt-1 text-xs text-zinc-600">
-          <span className="font-mono">{a.id}</span>
-        </div>
-        <div className="mt-2 text-xs">
-          Status: <span className="font-medium">{a.status}</span>{" "}
-          · Approved: <span className="font-medium">{String(a.approved)}</span>
-        </div>
-      </div>
-    ))
-  )}
-</div>
+          {/* Registry */}
+          <div className="mt-10 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Registry</h2>
+            <button
+              onClick={refreshRegistry}
+              className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
+            >
+              {loadingAgents ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
 
+          <p className="mt-1 text-xs text-zinc-500">
+            All registered agents and their governance state.
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {agents.length === 0 ? (
+              <p className="text-sm text-zinc-600">No agents yet.</p>
+            ) : (
+              agents.map((a) => (
+                <div key={a.id} className="rounded-xl border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{a.name || "Unnamed agent"}</div>
+
+                      <div className="mt-1 flex items-center gap-2 text-xs text-zinc-600">
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Tier: <span className="font-medium">{a.tier}</span>
+                        </span>
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Status: <span className="font-medium">{a.status}</span>
+                        </span>
+                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                          Approved:{" "}
+                          <span className="font-medium">{String(a.approved)}</span>
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-xs text-zinc-600">
+                        <span className="font-mono break-all">{a.id}</span>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/console/agents/${encodeURIComponent(a.id)}`}
+                      className="shrink-0 rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
+                      title="View full agent details"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: Classification Output */}
         <div>
           {!out ? (
             <div className="rounded-xl border bg-white p-4">
@@ -191,8 +220,8 @@ export default function RegisterAgentPage() {
                 Classification result will appear here.
               </p>
               <p className="mt-2 text-xs text-zinc-500">
-                Returns whatever your <code>/api/agents/register</code> endpoint
-                emits (tier, controls, policy hits, etc.).
+                Returns whatever your <code>/api/agents/register</code> endpoint emits
+                (tier, controls, policy hits, etc.).
               </p>
             </div>
           ) : (
