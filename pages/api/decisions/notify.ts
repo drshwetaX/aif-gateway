@@ -32,8 +32,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = String(decision_id || "");
   if (!id) return res.status(400).json({ error: "decision_id required" });
 
-  const d = getDecision(id);
+  const d = await getDecision(id);
   if (!d) return res.status(404).json({ error: "Decision not found" });
+  
+  if (d.status !== "PENDING") {
+
 
   // For demo: notify only makes sense if decision is still pending
   if (d.status !== "PENDING") {
