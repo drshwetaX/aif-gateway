@@ -27,7 +27,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const d = getDecision(id);
   if (!d) return res.status(404).json({ error: "Decision not found" });
 
-  const updated = updateDecision(id, {
+  const updated = await updateDecision(id, {
     status: "APPROVED",
     approvedAt: nowIso(),
     approvedBy: user,
