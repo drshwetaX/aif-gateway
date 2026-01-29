@@ -21,6 +21,7 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/openapi",
   "/api/openapi.json",
+  "/api/agents/check", // server-to-server (Bearer auth inside handler)
   "/api/foundry", // server-to-server (Bearer auth inside handler)
 ];
 
