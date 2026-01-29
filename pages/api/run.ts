@@ -25,7 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const intent = buildIntent(body);
 
   const agentId = body?.agent_id ? String(body.agent_id) : "";
-  const agent = agentId ? getAgent(agentId) : null;
+
+  // ✅ FIX: await getAgent (it returns Promise<Agent|null>)
+  const agent = agentId ? await getAgent(agentId) : null;
 
   const computedTier = resolveTier(intent);
   const computedControls = controlsForTier(computedTier);
@@ -33,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const latency_ms = () => Date.now() - t0;
 
   if (!agent) {
-    writeAudit({
+    await writeAudit({
       ts: nowIso(),
       user,
       endpoint: "/api/run",
@@ -45,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       controls: computedControls,
       latency_ms: latency_ms(),
       env,
-    });
+    } as any);
 
     return res.status(403).json({
       ok: false,
@@ -65,31 +67,145 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const controls = agent.controls ?? controlsForTier(tier);
 
   if (agent.status === "paused") {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_paused", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "invalid_request", rationale: "Agent is paused by governance.", ts: nowIso(), tier, controls, intent });
+    await writeAudit({
+      ts: nowIso(),
+      user,
+      endpoint: "/api/run",
+      decision: "DENY",
+      reason: "agent_paused",
+      agentId,
+      intent,
+      tier,
+      controls,
+      latency_ms: latency_ms(),
+      env,
+    } as any);
+
+    return res.status(403).json({
+      ok: false,
+      decision: "DENIED",
+      error: "invalid_request",
+      rationale: "Agent is paused by governance.",
+      ts: nowIso(),
+      tier,
+      controls,
+      intent,
+    });
   }
 
   if (agent.status === "killed") {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_killed", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "invalid_request", rationale: "Agent is killed by governance.", ts: nowIso(), tier, controls, intent });
+    await writeAudit({
+      ts: nowIso(),
+      user,
+      endpoint: "/api/run",
+      decision: "DENY",
+      reason: "agent_killed",
+      agentId,
+      intent,
+      tier,
+      controls,
+      latency_ms: latency_ms(),
+      env,
+    } as any);
+
+    return res.status(403).json({
+      ok: false,
+      decision: "DENIED",
+      error: "invalid_request",
+      rationale: "Agent is killed by governance.",
+      ts: nowIso(),
+      tier,
+      controls,
+      intent,
+    });
   }
 
   if (agent.approved === false || agent.status === "requested") {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "agent_not_approved", agentId, intent, tier, controls, latency_ms: latency_ms(), env });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "Agent is not approved yet (design-time gate).", ts: nowIso(), tier, controls, intent });
+    await writeAudit({
+      ts: nowIso(),
+      user,
+      endpoint: "/api/run",
+      decision: "DENY",
+      reason: "agent_not_approved",
+      agentId,
+      intent,
+      tier,
+      controls,
+      latency_ms: latency_ms(),
+      env,
+    } as any);
+
+    return res.status(403).json({
+      ok: false,
+      decision: "DENIED",
+      error: "approval_required",
+      rationale: "Agent is not approved yet (design-time gate).",
+      ts: nowIso(),
+      tier,
+      controls,
+      intent,
+    });
   }
 
   if (controls?.approvalRequired && !approvedFlag) {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "approval_required", agentId, intent, tier, controls, latency_ms: latency_ms(), env, override_id: activeOverride?.id || null });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "approval_required", rationale: "This action requires approval per policy controls.", ts: nowIso(), tier, controls, intent, override_id: activeOverride?.id || null });
+    await writeAudit({
+      ts: nowIso(),
+      user,
+      endpoint: "/api/run",
+      decision: "DENY",
+      reason: "approval_required",
+      agentId,
+      intent,
+      tier,
+      controls,
+      latency_ms: latency_ms(),
+      env,
+      override_id: activeOverride?.id || null,
+    } as any);
+
+    return res.status(403).json({
+      ok: false,
+      decision: "DENIED",
+      error: "approval_required",
+      rationale: "This action requires approval per policy controls.",
+      ts: nowIso(),
+      tier,
+      controls,
+      intent,
+      override_id: activeOverride?.id || null,
+    });
   }
 
   if (controls?.sandboxOnly && env !== "sandbox") {
-    writeAudit({ ts: nowIso(), user, endpoint: "/api/run", decision: "DENY", reason: "sandbox_only", agentId, intent, tier, controls, latency_ms: latency_ms(), env, override_id: activeOverride?.id || null });
-    return res.status(403).json({ ok: false, decision: "DENIED", error: "sandbox_only", rationale: "This action is restricted to sandbox per policy controls.", ts: nowIso(), tier, controls, intent, override_id: activeOverride?.id || null });
+    await writeAudit({
+      ts: nowIso(),
+      user,
+      endpoint: "/api/run",
+      decision: "DENY",
+      reason: "sandbox_only",
+      agentId,
+      intent,
+      tier,
+      controls,
+      latency_ms: latency_ms(),
+      env,
+      override_id: activeOverride?.id || null,
+    } as any);
+
+    return res.status(403).json({
+      ok: false,
+      decision: "DENIED",
+      error: "sandbox_only",
+      rationale: "This action is restricted to sandbox per policy controls.",
+      ts: nowIso(),
+      tier,
+      controls,
+      intent,
+      override_id: activeOverride?.id || null,
+    });
   }
 
-  writeAudit({
+  await writeAudit({
     ts: nowIso(),
     user,
     endpoint: "/api/run",
@@ -106,7 +222,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     tokens_in: 0,
     tokens_out: 0,
     cost_usd: 0,
-  });
+  } as any);
 
   return res.status(200).json({
     ok: true,
