@@ -19,3 +19,4 @@ dev.log
 
 # misc
 .DS_Store
+.data/
