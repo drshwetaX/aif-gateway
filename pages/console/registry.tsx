@@ -13,6 +13,24 @@ export default function RegisterAgentPage() {
   const [out, setOut] = useState<RegisterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  
+  async function refreshRegistry() {
+    setLoadingAgents(true);
+    try {
+      const r = await fetch("/api/agents/list");
+      const j = await r.json();
+      setAgents(j?.agents || []);
+    } finally {
+      setLoadingAgents(false);
+    }
+  }
+  
+  // call once on load
+  useEffect(() => {
+    refreshRegistry();
+  }, []);
 
   const canSubmit = useMemo(() => {
     return Boolean(name.trim() && problem.trim() && !busy);
@@ -134,6 +152,37 @@ export default function RegisterAgentPage() {
             </button>
           </div>
         </div>
+<div className="mt-4 flex items-center justify-between">
+  <h2 className="text-sm font-semibold">Registry</h2>
+  <button
+    onClick={refreshRegistry}
+    className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
+  >
+    {loadingAgents ? "Refreshing…" : "Refresh"}
+  </button>
+</div>
+
+<div className="mt-3 space-y-2">
+  {agents.length === 0 ? (
+    <p className="text-sm text-zinc-600">No agents yet.</p>
+  ) : (
+    agents.map((a) => (
+      <div key={a.id} className="rounded-xl border p-3">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-medium">{a.name}</div>
+          <div className="text-xs text-zinc-600">{a.tier}</div>
+        </div>
+        <div className="mt-1 text-xs text-zinc-600">
+          <span className="font-mono">{a.id}</span>
+        </div>
+        <div className="mt-2 text-xs">
+          Status: <span className="font-medium">{a.status}</span>{" "}
+          · Approved: <span className="font-medium">{String(a.approved)}</span>
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
         <div>
           {!out ? (
