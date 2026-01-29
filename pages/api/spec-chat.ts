@@ -16,7 +16,7 @@ function nowIso() {
 }
 
 function loadAuraTxtPath() {
-  return path.join(process.cwd(), "policy", "Aura_framework_v1.6.txt");
+  return path.join(process.cwd(), "policy", "aura.txt");
 }
 
 function getPolicyText() {
