@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ts: nowIso(),
   kind: "agent.kill",
   endpoint: "/api/agents/kill",
-  decision: "allow",
+  decision: "ALLOW",
   reason: "agent_killed",
   agentId: id,
   status,
