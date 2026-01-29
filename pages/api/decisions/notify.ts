@@ -29,14 +29,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const decision_id = String(body.decision_id || "").trim();
   const to = body.to ? String(body.to).trim() : "";
-  const expires_at = body.expires_at ? String(body.expires_at).trim() : "";
+  const expires_at = body.expires_at ? String(body.expires_at).trim() : ""; // stored as metadata only
 
   if (!decision_id) return res.status(400).json({ error: "decision_id required" });
   if (!to) return res.status(400).json({ error: "to required" });
 
-  // If your demoAuth supports expiration checks, enforce them
-  if (expires_at && isExpiredNow(expires_at)) {
-    return res.status(400).json({ error: "Notification request expired", expires_at });
+  // DemoAuth expiry check (no-arg in your codebase)
+  if (isExpiredNow()) {
+    return res.status(400).json({ error: "Demo expired" });
   }
 
   // Enforce allowlist (demo safety)
@@ -56,12 +56,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Persist notify metadata onto the decision (optional but useful)
   const updated = await updateDecision(decision_id, {
+    status: d.status ?? "PENDING",
     notify_to: to,
     notify_token,
     notified_at: nowIso(),
     notified_by: user,
-    // keep status pending, just annotated
-    status: d.status ?? "PENDING",
+    notify_expires_at: expires_at || undefined,
   });
 
   // Push to outbox (demo email queue / Teams queue / etc.)
@@ -99,6 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     tier: updated.tier,
     policy_version: updated.policy_version,
     status: updated.status,
+    to,
   } as any);
 
   return res.status(200).json({
