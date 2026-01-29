@@ -66,15 +66,18 @@ export async function updateDecision(
   patch: Partial<Decision> & { id?: string }
 ): Promise<Decision> {
   const idx = decisionStore.decisions.findIndex((d) => d.id === id);
+
   if (idx === -1) {
-    const created: Decision = { id, decision: "PENDING", ...patch, id: id };
+    const created: Decision = { id, decision: "PENDING", ...patch };
     decisionStore.decisions.unshift(created);
     return created;
   }
+
   const updated: Decision = { ...decisionStore.decisions[idx], ...patch, id };
   decisionStore.decisions[idx] = updated;
   return updated;
 }
+
 
 export async function listAgents(): Promise<Agent[]> {
   return store.agents;
