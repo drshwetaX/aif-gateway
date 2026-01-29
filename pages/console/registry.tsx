@@ -4,7 +4,6 @@ import Link from "next/link";
 import ConsoleShell from "@/components/ConsoleShell";
 
 type RegisterResponse = any;
-
 type ChatMsg = { role: "user" | "assistant"; text: string };
 
 function summarizeControls(controls: any) {
@@ -15,8 +14,7 @@ function summarizeControls(controls: any) {
   if (controls.piiRedaction) out.push("PII redaction on");
   if (controls.logging) out.push("Logging enabled");
   if (controls.sandboxOnly) out.push("Sandbox-only");
-  if (typeof controls.rateLimitPerMin === "number")
-    out.push(`Rate limit: ${controls.rateLimitPerMin}/min`);
+  if (typeof controls.rateLimitPerMin === "number") out.push(`Rate limit: ${controls.rateLimitPerMin}/min`);
   if (controls.auditLevel) out.push(`Audit level: ${controls.auditLevel}`);
   if (controls.killSwitchRequired) out.push("Kill switch required");
   return out;
@@ -34,63 +32,15 @@ function explainTier(tier?: string) {
   return tier ? map[tier] || `Tier ${tier}: governance tier determined by policy.` : "No tier assigned.";
 }
 
-function answerSpecQuestion(q: string, out: any) {
-  const question = (q || "").toLowerCase();
-  const tier = out?.risk_tier || out?.tier || out?.agent?.tier;
-  const controls = out?.controls || out?.agent?.controls;
-  const explain = out?.tiering_explain || out?.agent?.tiering_explain;
-
-  if (question.includes("what is a4") || question === "a4" || question.includes("meaning of a4")) {
-    return explainTier("A4");
-  }
-
-  if (question.includes("what is a") && /a[1-6]/.test(question)) {
-    const m = question.match(/a[1-6]/)?.[0]?.toUpperCase();
-    return explainTier(m);
-  }
-
-  if (question.includes("why") && (question.includes("a4") || question.includes("tier"))) {
-    const matched = explain?.matched_rule_ids?.length
-      ? `Matched rules: ${explain.matched_rule_ids.join(", ")}.`
-      : "No matched rules returned.";
-    return `This agent was classified as ${tier}. ${matched} The policy escalated the tier based on the declared intent/systems and the associated governance requirements.`;
-  }
-
-  if (question.includes("controls") || question.includes("guardrail") || question.includes("governance")) {
-    const bullets = summarizeControls(controls);
-    return bullets.length
-      ? `Key controls for ${tier}:\n- ${bullets.join("\n- ")}`
-      : `No controls found on the agent record.`;
-  }
-
-  if (question.includes("human") || question.includes("hitl") || question.includes("approval")) {
-    const hitl = controls?.humanInLoop ? "enabled" : "not enabled";
-    const appr = controls?.approvalRequired ? "required" : "not required";
-    return `For tier ${tier}: human-in-the-loop is ${hitl} and approval is ${appr}. This is used to prevent high-impact actions from executing without oversight.`;
-  }
-
-  if (question.includes("why") && (question.includes("rule") || question.includes("matched"))) {
-    const rules = explain?.matched_rules || [];
-    if (!rules.length) return "No matched rules were returned by the tiering explanation.";
-    return `Matched policy rules:\n${rules
-      .map((r: any) => `- ${r.ruleId} → thenTier ${r.thenTier} (because ${r.reason})`)
-      .join("\n")}`;
-  }
-
-  if (question.includes("spec") || question.includes("agent")) {
-    const tools = Array.isArray(out?.allowed_tools) ? out.allowed_tools : [];
-    return `Agent spec summary:\n- Tier: ${tier}\n- Allowed tools: ${tools.join(", ") || "unknown"}\n- Controls: ${summarizeControls(controls).join("; ") || "none"}\n- Policy version: ${out?.policy_version || out?.agent?.policy_version || "unknown"}`;
-  }
-
-  return `Try: "what is ${tier}?", "why ${tier}?", "what controls are enabled?", "which rules matched?"`;
-}
-
 export default function RegisterAgentPage() {
   const [name, setName] = useState("Demo Agent");
-  const [problem, setProblem] = useState(
-    "Retrieve internal knowledge to answer customer questions."
-  );
+  const [problem, setProblem] = useState("Retrieve internal knowledge to answer customer questions.");
   const [overrideTier, setOverrideTier] = useState("");
+
+  // ✅ move inside component (React rules)
+  const [env, setEnv] = useState("test");
+  const [stage, setStage] = useState("poc");
+  const [comment, setComment] = useState("");
 
   const [out, setOut] = useState<RegisterResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -100,10 +50,7 @@ export default function RegisterAgentPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
 
   const [chat, setChat] = useState<ChatMsg[]>([
-    {
-      role: "assistant",
-      text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"',
-    },
+    { role: "assistant", text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"' },
   ]);
   const [chatInput, setChatInput] = useState("");
 
@@ -126,49 +73,67 @@ export default function RegisterAgentPage() {
     return Boolean(name.trim() && problem.trim() && !busy);
   }, [name, problem, busy]);
 
-  async function submit() {
+  async function classifyOnly() {
     if (!name.trim() || !problem.trim() || busy) return;
 
     setBusy(true);
     setErr(null);
     setOut(null);
 
-    const payload: Record<string, any> = {
-      name: name.trim(),
-      problem_statement: problem.trim(),
-    };
-    if (overrideTier) payload.override_tier = overrideTier;
+    try {
+      const payload: any = {
+        name: name.trim(),
+        problem_statement: problem.trim(),
+      };
+      if (overrideTier) payload.override_tier = overrideTier;
+
+      const res = await fetch("/api/agents/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Classify failed (HTTP ${res.status})`);
+
+      setOut(data);
+      setChat([{ role: "assistant", text: `Classified. Ask: "why ${data?.risk_tier}?" or "what controls?"` }]);
+    } catch (e: any) {
+      setErr(e?.message || "Classify failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function registerAfterClassify() {
+    if (busy) return;
+    if (!out) return setErr("Please classify first.");
+
+    setBusy(true);
+    setErr(null);
 
     try {
+      const payload: any = {
+        name: name.trim(),
+        problem_statement: problem.trim(),
+        override_tier: overrideTier || undefined,
+        env,
+        stage,
+        comment,
+        agent_spec: out, // optional
+      };
+
       const res = await fetch("/api/agents/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = { raw: text };
-      }
-
-      if (!res.ok) {
-        const msg =
-          data?.error ||
-          data?.message ||
-          `Register failed (HTTP ${res.status})`;
-        throw new Error(msg);
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Register failed (HTTP ${res.status})`);
 
       setOut(data);
-      setChat([
-        {
-          role: "assistant",
-          text: `Registered. Ask me about this agent — e.g., "what is ${data?.risk_tier}?" or "why ${data?.risk_tier}?"`,
-        },
-      ]);
+      setChat([{ role: "assistant", text: `Registered. Ask: "what is ${data?.risk_tier}?" or "which rules matched?"` }]);
       await refreshRegistry();
     } catch (e: any) {
       setErr(e?.message || "Register failed");
@@ -178,41 +143,34 @@ export default function RegisterAgentPage() {
   }
 
   async function ask(q: string) {
-  const question = q.trim();
-  if (!question) return;
+    const question = q.trim();
+    if (!question) return;
 
-  // Add the user message immediately
-  setChat((prev) => [...prev, { role: "user", text: question }]);
-  setChatInput("");
+    setChat((prev) => [...prev, { role: "user", text: question }]);
+    setChatInput("");
 
-  try {
-    const r = await fetch("/api/spec-chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, agentSpec: out }),
-    });
+    try {
+      const r = await fetch("/api/spec-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, agentSpec: out }),
+      });
 
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j?.error || `Spec chat failed (HTTP ${r.status})`);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.error || `Spec chat failed (HTTP ${r.status})`);
 
-    const answer = j?.answer || "No answer returned.";
-    setChat((prev) => [...prev, { role: "assistant", text: answer }]);
-  } catch (e: any) {
-    setChat((prev) => [
-      ...prev,
-      { role: "assistant", text: `Error: ${e?.message || "spec chat failed"}` },
-    ]);
+      const answer = j?.answer || "No answer returned.";
+      setChat((prev) => [...prev, { role: "assistant", text: answer }]);
+    } catch (e: any) {
+      setChat((prev) => [...prev, { role: "assistant", text: `Error: ${e?.message || "spec chat failed"}` }]);
+    }
   }
-}
-
 
   const tier = out?.risk_tier;
 
   return (
     <ConsoleShell title="Register agent">
-      <p className="mt-2 text-sm text-zinc-600">
-        Problem statement → policy classification → tier + controls.
-      </p>
+      <p className="mt-2 text-sm text-zinc-600">Problem statement → policy classification → tier + controls.</p>
 
       {err && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -221,11 +179,9 @@ export default function RegisterAgentPage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* LEFT: form + registry */}
+        {/* LEFT */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide">
-            Name
-          </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide">Name</label>
           <input
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             value={name}
@@ -233,9 +189,7 @@ export default function RegisterAgentPage() {
             placeholder="e.g., Claims Triage Agent"
           />
 
-          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">
-            Problem statement
-          </label>
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">Problem statement</label>
           <textarea
             rows={6}
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
@@ -244,9 +198,7 @@ export default function RegisterAgentPage() {
             placeholder="Describe what the agent does, what it can access, and the type of outcomes it produces…"
           />
 
-          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">
-            Override tier (optional)
-          </label>
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">Override tier (optional)</label>
           <select
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             value={overrideTier}
@@ -260,13 +212,58 @@ export default function RegisterAgentPage() {
             ))}
           </select>
 
+          {/* ✅ Env/Stage/Comment (correct placement) */}
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">Environment</label>
+          <select
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            value={env}
+            onChange={(e) => setEnv(e.target.value)}
+          >
+            {["test", "prod"].map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
+
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">Stage</label>
+          <select
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            value={stage}
+            onChange={(e) => setStage(e.target.value)}
+          >
+            {["poc", "pilot", "prod"].map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
+
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">Comment / justification</label>
+          <textarea
+            rows={3}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Why does this agent need this access/tier? Any constraints?"
+          />
+
           <div className="mt-6 flex items-center gap-3">
             <button
-              onClick={submit}
+              onClick={classifyOnly}
               disabled={!canSubmit}
               className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
             >
-              {busy ? "Registering…" : "Register"}
+              {busy ? "Working…" : "Classify"}
+            </button>
+
+            <button
+              onClick={registerAfterClassify}
+              disabled={busy || !out}
+              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
+              title={!out ? "Classify first" : "Register agent into registry"}
+            >
+              {busy ? "Working…" : "Register"}
             </button>
 
             <button
@@ -274,12 +271,7 @@ export default function RegisterAgentPage() {
               onClick={() => {
                 setOut(null);
                 setErr(null);
-                setChat([
-                  {
-                    role: "assistant",
-                    text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"',
-                  },
-                ]);
+                setChat([{ role: "assistant", text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"' }]);
               }}
               className="rounded-xl border px-4 py-2 text-sm hover:bg-zinc-50"
             >
@@ -290,17 +282,12 @@ export default function RegisterAgentPage() {
           {/* Registry */}
           <div className="mt-10 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Registry</h2>
-            <button
-              onClick={refreshRegistry}
-              className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
-            >
+            <button onClick={refreshRegistry} className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50">
               {loadingAgents ? "Refreshing…" : "Refresh"}
             </button>
           </div>
 
-          <p className="mt-1 text-xs text-zinc-500">
-            All registered agents and their governance state.
-          </p>
+          <p className="mt-1 text-xs text-zinc-500">All registered agents and their governance state.</p>
 
           <div className="mt-3 space-y-2">
             {agents.length === 0 ? (
@@ -327,30 +314,39 @@ export default function RegisterAgentPage() {
                       <div className="mt-2 text-xs text-zinc-600">
                         <span className="font-mono break-all">{a.id}</span>
                       </div>
-                      {a.env ? (
-                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
-                          Env: <span className="font-medium">{a.env}</span>
-                        </span>
-                      ) : null}
-                      
-                      {a.stage ? (
-                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
-                          Stage: <span className="font-medium">{a.stage}</span>
-                        </span>
-                      ) : null}
-                      
-                      {a.requested_at || a.created_at ? (
-                        <span className="rounded-md bg-zinc-50 px-2 py-0.5">
-                          Requested: <span className="font-medium">{String(a.requested_at || a.created_at).slice(0, 19)}</span>
-                        </span>
-                      ) : null}
-                      
-                      {a.review_notes ? (
-                        <span className="rounded-md bg-zinc-50 px-2 py-0.5" title={a.review_notes}>
-                          Comment: <span className="font-medium">{String(a.review_notes).slice(0, 24)}{String(a.review_notes).length > 24 ? "…" : ""}</span>
-                        </span>
-                      ) : null}
 
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-600">
+                        {a.env ? (
+                          <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                            Env: <span className="font-medium">{a.env}</span>
+                          </span>
+                        ) : null}
+
+                        {a.stage ? (
+                          <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                            Stage: <span className="font-medium">{a.stage}</span>
+                          </span>
+                        ) : null}
+
+                        {a.requested_at || a.created_at ? (
+                          <span className="rounded-md bg-zinc-50 px-2 py-0.5">
+                            Requested:{" "}
+                            <span className="font-medium">
+                              {String(a.requested_at || a.created_at).slice(0, 19)}
+                            </span>
+                          </span>
+                        ) : null}
+
+                        {a.comment ? (
+                          <span className="rounded-md bg-zinc-50 px-2 py-0.5" title={a.comment}>
+                            Comment:{" "}
+                            <span className="font-medium">
+                              {String(a.comment).slice(0, 28)}
+                              {String(a.comment).length > 28 ? "…" : ""}
+                            </span>
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <Link
@@ -367,20 +363,18 @@ export default function RegisterAgentPage() {
           </div>
         </div>
 
-        {/* RIGHT: explain + chat + raw */}
+        {/* RIGHT */}
         <div className="space-y-4">
           {!out ? (
             <div className="rounded-xl border bg-white p-4">
-              <p className="text-sm text-zinc-600">
-                Classification result will appear here.
-              </p>
+              <p className="text-sm text-zinc-600">Classification result will appear here.</p>
               <p className="mt-2 text-xs text-zinc-500">
-                After registration, you’ll see a human-readable explanation + a mini chat to query the spec.
+                Click <b>Classify</b> first, then <b>Register</b> to persist into registry.
               </p>
             </div>
           ) : (
             <>
-              {/* Explain */}
+              {/* Explanation */}
               <div className="rounded-xl border bg-white p-4">
                 <div className="text-sm font-semibold">Explanation</div>
                 <div className="mt-2 text-sm text-zinc-700">
@@ -390,9 +384,7 @@ export default function RegisterAgentPage() {
                   </div>
                   <div className="mt-2 text-xs text-zinc-600">{explainTier(tier)}</div>
 
-                  <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Key controls
-                  </div>
+                  <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">Key controls</div>
                   <ul className="mt-2 list-disc pl-5 text-sm text-zinc-700">
                     {summarizeControls(out.controls).map((x) => (
                       <li key={x}>{x}</li>
@@ -423,12 +415,7 @@ export default function RegisterAgentPage() {
                   <button
                     className="rounded-xl border px-3 py-1 text-xs hover:bg-zinc-50"
                     onClick={() =>
-                      setChat([
-                        {
-                          role: "assistant",
-                          text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"',
-                        },
-                      ])
+                      setChat([{ role: "assistant", text: 'Ask me about the agent spec — e.g., "what is A4?" or "why A4?"' }])
                     }
                   >
                     Clear chat
