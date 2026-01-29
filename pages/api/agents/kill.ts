@@ -25,12 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const status = updated?.status ?? a.status ?? "unknown";
 
   await writeAudit({
-    ts: nowIso(),
-    kind: "agent.kill",
-    reason: "agent_killed",
-    agentId: id,
-    status,
-  });
+  ts: nowIso(),
+  kind: "agent.kill",
+  endpoint: "/api/agents/kill",
+  decision: "allow",
+  reason: "agent_killed",
+  agentId: id,
+  status,
+});
+
 
   return res.status(200).json({ ok: true, agent_id: id, status });
 }
