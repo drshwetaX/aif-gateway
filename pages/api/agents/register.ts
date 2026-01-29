@@ -2,8 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { buildIntent } from "@/lib/policy/intent";
 import { resolveTier, controlsForTier, type Tier, type AgentIntent } from "@/lib/policy/policyEngine";
 import { loadAuraPolicy } from "@/lib/policy/loadPolicy";
-import { updateAgent } from "@/lib/demoStore";
 import { writeAudit } from "@/lib/audit/audit";
+import { upsertAgent } from "@/lib/demoStore";
 
 function nowIso() {
   return new Date().toISOString();
@@ -105,7 +105,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const agentId = newAgentId(externalAgentId);
 
-  const agent = updateAgent(agentId, {
+    const agent = await upsertAgent({
     id: agentId,
     externalAgentId,
     name,
@@ -125,7 +125,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     review: { decision: "PENDING", decidedAt: null },
   });
 
-  writeAudit({
+
+ await writeAudit({
     ts: nowIso(),
     user,
     endpoint: "/api/agents/register",
