@@ -115,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     status: "requested",
     approved: false,
 
-    createdAt: nowIso(),
+    created_at: nowIso(),
     problem_statement: problemStatement,
     intent,
     tier,
