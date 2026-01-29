@@ -89,6 +89,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const overrideTier = body.override_tier ? String(body.override_tier) : undefined;
   const problemStatement = body.problem_statement ? String(body.problem_statement) : "";
 
+  // NEW: registry metadata
+  const env = body.env ? String(body.env) : "test";          // prod/test/sandbox
+  const stage = body.stage ? String(body.stage) : "poc";     // poc/pilot/prod
+  const review_notes = body.review_notes ? String(body.review_notes) : null;
+
   let intent = buildIntent(body);
 
   if ((!intent.actions || intent.actions.length === 0) && problemStatement) {
@@ -102,31 +107,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const controls = controlsForTier(tier);
 
   const allowed_tools = tier === "A1" || tier === "A2" ? ["read_only"] : ["read_only", "write_via_gateway"];
-
   const agentId = newAgentId(externalAgentId);
 
-    const agent = await upsertAgent({
+  const tiering_explain = explainTiering(intent, tier);
+
+  const agent = await upsertAgent({
     id: agentId,
     externalAgentId,
     name,
     owner: user,
 
-    // ✅ pre-hire record exists even if denied later
     status: "requested",
     approved: false,
 
+    // timestamps
     created_at: nowIso(),
+    requested_at: nowIso(),
+    approved_at: null,
+
+    // registry metadata
+    env,
+    stage,
+    review_notes,
+
     problem_statement: problemStatement,
     intent,
     tier,
     controls,
     allowed_tools,
     policy_version: loadAuraPolicy()?.version ?? "unknown",
-    review: { decision: "PENDING", decidedAt: null },
-  });
+    tiering_explain,
 
+    review: { decision: "PENDING", decidedAt: null, decidedBy: null, notes: review_notes },
+  } as any);
 
- await writeAudit({
+  await writeAudit({
     ts: nowIso(),
     user,
     endpoint: "/api/agents/register",
@@ -139,9 +154,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     intent,
     status: agent.status,
     approved: agent.approved,
-  });
-
-  const tiering_explain = explainTiering(intent, tier);
+    env,
+    stage,
+  } as any);
 
   return res.status(200).json({
     ok: true,
@@ -152,6 +167,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     controls: agent.controls,
     allowed_tools: agent.allowed_tools,
     policy_version: agent.policy_version,
-    tiering_explain,
+    tiering_explain: agent.tiering_explain,
+    env: agent.env,
+    stage: agent.stage,
+    requested_at: agent.requested_at || agent.created_at,
+    review_notes: agent.review_notes,
   });
 }
