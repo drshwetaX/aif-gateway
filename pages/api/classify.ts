@@ -1,139 +1,103 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { buildIntent } from "@/lib/policy/intent";
+import { resolveTier, controlsForTier, type Tier, type AgentIntent } from "@/lib/policy/policyEngine";
 import { loadAuraPolicy } from "@/lib/policy/loadPolicy";
-import { writeAudit } from "@/lib/audit/audit";
-
-type ClassifyResult = {
-  tier: string; // A1-A6
-  confidence: number; // 0..1
-  rationale: string;
-  drivers: string[];
-};
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function getAllowedTiers() {
-  const policy = loadAuraPolicy();
-  const tiers = Array.isArray((policy as any)?.tiers) ? (policy as any).tiers : [];
-  return tiers.map((t: any) => String(t?.id || "")).filter(Boolean);
+function intentFromProblemStatement(problem_statement: string): AgentIntent {
+  const text = (problem_statement || "").toLowerCase();
+  const intent: AgentIntent = {
+    actions: ["retrieve"],
+    systems: ["kb"],
+    dataSensitivity: "INTERNAL",
+    crossBorder: false,
+  };
+
+  if (/\b(update|write|create|submit|change|delete|approve|send)\b/.test(text)) {
+    intent.actions = ["update_record"];
+    intent.systems = ["salesforce"];
+  }
+  if (/\b(workday|hr|employee|onboarding)\b/.test(text)) {
+    intent.systems = ["workday"];
+  }
+  if (/\b(pii|sin|ssn|passport|medical|claim|benefit)\b/.test(text)) {
+    intent.dataSensitivity = "PII";
+  }
+  if (/\b(cross[- ]border|international|outside canada|eu|uk|us)\b/.test(text)) {
+    intent.crossBorder = true;
+  }
+  return intent;
 }
 
-async function callOpenAIJSON(prompt: string): Promise<any> {
-  const apiKey = process.env.OPENAI_API_KEY || "";
-  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+function explainTiering(intent: AgentIntent, finalTier: Tier) {
+  const policy = loadAuraPolicy();
+  const rules = (policy.tiering?.rules ?? []) as any[];
 
-  // Uses Responses API-compatible shape? We’ll keep it simple with Chat Completions style via fetch.
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: "You are a risk classifier. Output ONLY JSON." },
-        { role: "user", content: prompt },
-      ],
-    }),
-  });
+  const matched: Array<{ ruleId: string; thenTier: string; reason: string }> = [];
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error?.message || `OpenAI error (HTTP ${res.status})`);
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    const cond = r?.if ?? {};
+
+    const actionsAny = cond.actionsAny as string[] | undefined;
+    const actionsOnly = cond.actionsOnly as string[] | undefined;
+    const systemsAny = cond.systemsAny as string[] | undefined;
+    const dataSensitivityIn = cond.dataSensitivityIn as string[] | undefined;
+    const crossBorder = cond.crossBorder as boolean | undefined;
+
+    const ok =
+      (actionsAny ? actionsAny.some((a) => intent.actions.includes(a)) : true) &&
+      (actionsOnly ? intent.actions.length > 0 && intent.actions.every((a) => actionsOnly.includes(a)) : true) &&
+      (systemsAny ? systemsAny.some((s) => intent.systems.includes(s)) : true) &&
+      (dataSensitivityIn ? dataSensitivityIn.includes(intent.dataSensitivity ?? "") : true) &&
+      (crossBorder !== undefined ? crossBorder === !!intent.crossBorder : true);
+
+    if (!ok) continue;
+
+    matched.push({
+      ruleId: String(r?.id ?? `rule_${i}`),
+      thenTier: String(r?.thenTier ?? ""),
+      reason: JSON.stringify(r?.if ?? {}),
+    });
   }
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("No model output");
-  return JSON.parse(content);
+
+  return { finalTier, matched_rule_ids: matched.map((m) => m.ruleId), matched_rules: matched };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ ok: false, error: "method_not_allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  const user = (req.headers["x-demo-user"] as string | undefined) || "tool";
   const body = req.body || {};
-  const problem_statement = String(body.problem_statement || "").trim();
+  const name = String(body.name || "Demo Agent");
+  const overrideTier = body.override_tier ? String(body.override_tier) : "";
+  const problemStatement = body.problem_statement ? String(body.problem_statement) : "";
 
-  if (!problem_statement) {
-    return res.status(400).json({ ok: false, error: "missing_problem_statement" });
-  }
+  let intent = buildIntent(body);
+  if ((!intent.actions || intent.actions.length === 0) && problemStatement) intent = intentFromProblemStatement(problemStatement);
+  if (!Array.isArray(intent.actions) || intent.actions.length === 0) intent.actions = ["retrieve"];
+  if (!Array.isArray(intent.systems) || intent.systems.length === 0) intent.systems = ["kb"];
 
-  const allowedTiers = getAllowedTiers();
-  if (allowedTiers.length === 0) {
-    return res.status(500).json({ ok: false, error: "policy_pack_missing_tiers" });
-  }
+  let tier = resolveTier(intent);
+  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) tier = overrideTier as any;
 
-  const prompt = [
-    "Classify the following agent problem statement into a risk tier.",
-    `Allowed tiers: ${allowedTiers.join(", ")}`,
-    "",
-    "Return JSON with fields:",
-    `{ "tier": "A1|A2|A3|A4|A5|A6", "confidence": 0.0-1.0, "rationale": "string", "drivers": ["..."] }`,
-    "",
-    "Problem statement:",
-    problem_statement,
-  ].join("\n");
+  const controls = controlsForTier(tier);
+  const tiering_explain = explainTiering(intent, tier);
 
-  try {
-    const out = await callOpenAIJSON(prompt);
-
-    const tier = String(out?.tier || "").trim();
-    const confidence = Number(out?.confidence ?? 0);
-    const rationale = String(out?.rationale || "").trim();
-    const drivers = Array.isArray(out?.drivers) ? out.drivers.map((x: any) => String(x)) : [];
-
-    if (!allowedTiers.includes(tier)) {
-      writeAudit({
-        ts: nowIso(),
-        user,
-        endpoint: "/api/classify",
-        decision: "DENY",
-        reason: "llm_returned_invalid_tier",
-        tier_returned: tier,
-        allowed_tiers: allowedTiers,
-      });
-      return res.status(422).json({
-        ok: false,
-        error: "invalid_tier_from_llm",
-        allowed_tiers: allowedTiers,
-      });
-    }
-
-    const result: ClassifyResult = {
-      tier,
-      confidence: Math.max(0, Math.min(1, confidence)),
-      rationale: rationale || "LLM classification completed.",
-      drivers,
-    };
-
-    writeAudit({
-      ts: nowIso(),
-      user,
-      endpoint: "/api/classify",
-      decision: "ALLOW",
-      reason: "classified",
-      tier: result.tier,
-      confidence: result.confidence,
-      drivers: result.drivers,
-    });
-
-    return res.status(200).json({ ok: true, result });
-  } catch (e: any) {
-    writeAudit({
-      ts: nowIso(),
-      user,
-      endpoint: "/api/classify",
-      decision: "DENY",
-      reason: "llm_error",
-      message: String(e?.message || e),
-    });
-    return res.status(500).json({ ok: false, error: "llm_error", message: e?.message || "LLM error" });
-  }
+  return res.status(200).json({
+    ok: true,
+    ts: nowIso(),
+    name,
+    problem_statement: problemStatement,
+    intent,
+    risk_tier: tier,
+    controls,
+    policy_version: loadAuraPolicy()?.version ?? "unknown",
+    tiering_explain,
+  });
 }
