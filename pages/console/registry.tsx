@@ -3,7 +3,6 @@ import ConsoleLayout from "@/components/ConsoleLayout";
 
 export default function RegisterAgentPage() {
   const [name, setName] = useState("Demo Agent");
-  const [externalAgentId, setExternalAgentId] = useState("");
   const [problem, setProblem] = useState(
     "Retrieve internal knowledge to answer customer questions."
   );
@@ -18,22 +17,24 @@ export default function RegisterAgentPage() {
     setOut(null);
 
     try {
+      const payload: any = {
+        name: name.trim(),
+        problem_statement: problem.trim(),
+      };
+
+      if (overrideTier) payload.override_tier = overrideTier;
+
       const res = await fetch("/api/agents/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          externalAgentId: externalAgentId || undefined,
-          problem_statement: problem,
-          override_tier: overrideTier || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Register failed");
       setOut(data);
     } catch (e: any) {
-      setErr(e.message);
+      setErr(e?.message || "Register failed");
     } finally {
       setBusy(false);
     }
@@ -64,15 +65,6 @@ export default function RegisterAgentPage() {
           />
 
           <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">
-            External agent id (Foundry)
-          </label>
-          <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            value={externalAgentId}
-            onChange={(e) => setExternalAgentId(e.target.value)}
-          />
-
-          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide">
             Problem statement
           </label>
           <textarea
@@ -91,15 +83,17 @@ export default function RegisterAgentPage() {
             onChange={(e) => setOverrideTier(e.target.value)}
           >
             <option value="">None</option>
-            {["A1","A2","A3","A4","A5","A6"].map((t) => (
-              <option key={t} value={t}>{t}</option>
+            {["A1", "A2", "A3", "A4", "A5", "A6"].map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
 
           <button
             onClick={submit}
-            disabled={busy}
-            className="mt-6 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-zinc-50"
+            disabled={busy || !name.trim() || !problem.trim()}
+            className="mt-6 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
           >
             {busy ? "Registering…" : "Register"}
           </button>
@@ -112,7 +106,7 @@ export default function RegisterAgentPage() {
             </p>
           ) : (
             <pre className="overflow-auto rounded-xl border bg-zinc-50 p-3 text-xs">
-{JSON.stringify(out, null, 2)}
+              {JSON.stringify(out, null, 2)}
             </pre>
           )}
         </div>
