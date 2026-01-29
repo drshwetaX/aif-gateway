@@ -58,17 +58,21 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   });
 
   // Push to outbox (demo email queue / Teams queue / etc.)
-  pushOutbox({
-    type: "decision_notify",
-    decision_id: updated.id,
-    agent_id: updated.agent_id,
-    action: updated.action,
-    target: updated.target,
-    tier: updated.tier,
-    control_mode: updated.control_mode,
-    status: updated.status,
-    notify_token: token,
-  });
+  await pushOutbox({
+  id: `out_${updated.id}_${Date.now()}`,
+  ts: nowIso(),
+
+  type: "decision_notify",
+  decision_id: updated.id,
+  agent_id: updated.agent_id,
+  action: updated.action,
+  target: updated.target,
+  tier: updated.tier,
+  control_mode: updated.control_mode,
+  status: updated.status,
+  notify_token,
+});
+
 
   // Unified audit
   writeAudit({
