@@ -6,9 +6,8 @@ import {
   tryDecodeSession,
 } from "./lib/demoAuthEdge";
 
-// ⚠️ Dev / preview convenience only
-// NEVER leave this true in prod unless you want open access
-const BYPASS_LOGIN = process.env.NODE_ENV !== "production";
+// Only bypass login if you explicitly set DEMO_BYPASS_LOGIN=1
+const BYPASS_LOGIN = process.env.DEMO_BYPASS_LOGIN === "1";
 
 // Public UI/auth routes (no session required)
 const PUBLIC = new Set([
@@ -22,14 +21,13 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/openapi",
   "/api/openapi.json",
-  "/api/foundry",   // server-to-server (Bearer auth inside handler)
+  "/api/foundry", // server-to-server (Bearer auth inside handler)
 ];
 
 export function middleware(req: NextRequest) {
-  // 🔓 Dev/preview bypass
   if (BYPASS_LOGIN) return NextResponse.next();
 
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
   // Skip Next.js internals & static assets
   if (pathname.startsWith("/_next") || pathname.includes(".")) {
@@ -46,12 +44,15 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Preserve full destination (path + query)
+  const fullNext = `${pathname}${search || ""}`;
+
   // Demo expired → force login
   if (isExpiredNow()) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("expired", "1");
-    url.searchParams.set("next", pathname); // 🔥 critical
+    url.searchParams.set("next", fullNext);
     return NextResponse.redirect(url);
   }
 
@@ -64,20 +65,19 @@ export function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("reason", "no_session");
-    url.searchParams.set("next", pathname); // 🔥 critical
+    url.searchParams.set("next", fullNext);
     return NextResponse.redirect(url);
   }
 
   // Optional allowlist enforcement at Edge
   const hasEdgeAllowlist =
-    !!process.env.DEMO_ALLOWED_EMAILS ||
-    !!process.env.DEMO_ALLOWED_DOMAINS;
+    !!process.env.DEMO_ALLOWED_EMAILS || !!process.env.DEMO_ALLOWED_DOMAINS;
 
   if (hasEdgeAllowlist && !isEmailAllowed(session.email)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("reason", "not_allowlisted");
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", fullNext);
     return NextResponse.redirect(url);
   }
 
