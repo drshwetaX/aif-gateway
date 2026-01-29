@@ -4,9 +4,17 @@ import { useState } from "react";
 export default function LoginPage() {
   const router = useRouter();
 
+  // Compute a safe redirect target:
+  // - wait for router.isReady so query params are actually available
+  // - only allow internal paths starting with "/"
+  const rawNext =
+    router.isReady && typeof router.query.next === "string"
+      ? router.query.next.trim()
+      : "";
+
   const nextPath =
-    typeof router.query.next === "string" && router.query.next.trim()
-      ? (router.query.next as string)
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+      ? rawNext
       : "/console/registry";
 
   const [email, setEmail] = useState("");
@@ -27,35 +35,60 @@ export default function LoginPage() {
       });
 
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         setErr(data?.error || `Login failed (HTTP ${res.status})`);
-        setLoading(false);
         return;
       }
 
+      // Success → go where the user originally intended
       router.replace(nextPath);
     } catch {
       setErr("Network error");
+    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 520, border: "1px solid #e5e5e5", borderRadius: 12, padding: 20 }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          border: "1px solid #e5e5e5",
+          borderRadius: 12,
+          padding: 20,
+        }}
+      >
         <h1 style={{ margin: 0, fontSize: 26 }}>AIF Gateway</h1>
         <p style={{ marginTop: 8, color: "#555", lineHeight: 1.4 }}>
-          This demo shows: <b>Agent Registry</b> → <b>Classification</b> → <b>Controls</b> → <b>Override</b> → <b>Audit</b>.
+          This demo shows: <b>Agent Registry</b> → <b>Classification</b> →{" "}
+          <b>Controls</b> → <b>Override</b> → <b>Audit</b>.
         </p>
 
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 14 }}>
+        <form
+          onSubmit={onSubmit}
+          style={{ display: "grid", gap: 12, marginTop: 14 }}
+        >
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email (allowlisted)"
             autoComplete="email"
-            style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
+            style={{
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #ccc",
+            }}
           />
           <input
             type="password"
@@ -63,7 +96,11 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Demo password"
             autoComplete="current-password"
-            style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
+            style={{
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #ccc",
+            }}
           />
           <button
             type="submit"
@@ -81,6 +118,11 @@ export default function LoginPage() {
         </form>
 
         {err && <p style={{ marginTop: 12, color: "#b00020" }}>{err}</p>}
+
+        {/* Optional: helpful for debugging */}
+        {/* <pre style={{ marginTop: 12, fontSize: 12, color: "#777" }}>
+          nextPath: {nextPath}
+        </pre> */}
       </div>
     </main>
   );
