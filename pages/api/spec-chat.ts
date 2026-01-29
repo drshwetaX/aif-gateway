@@ -2,7 +2,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs";
 import path from "path";
-import mammoth from "mammoth";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mammoth = require("mammoth");
+
 
 type ChatReq = {
   question: string;
