@@ -1,14 +1,46 @@
 // lib/demoStore.ts
 
+export type AgentStatus = "requested" | "approved" | "paused" | "killed" | "terminated" | "active" | string;
+export type AgentEnv = "prod" | "test" | "sandbox" | string;
+export type AgentStage = "poc" | "pilot" | "prod" | string;
+
 export type Agent = {
   id: string;
   name: string;
   problem_statement: string;
+
+  // tiering / policy
   override_tier?: string;
+  tier?: string;
+  controls?: any;
+  intent?: any;
+  allowed_tools?: string[];
+  policy_version?: string;
+  tiering_explain?: any;
+
+  // ownership / lifecycle
+  owner?: string;
+  status?: AgentStatus;
+  approved?: boolean;
+
+  // timestamps (keep created_at to satisfy your existing type)
   created_at: string;
+  requested_at?: string;
+  approved_at?: string;
+
+  // extra metadata you asked for
+  env?: AgentEnv;          // prod/test/sandbox
+  stage?: AgentStage;      // poc/pilot/prod
+  review_notes?: string | null;
+
+  review?: {
+    decision: "PENDING" | "APPROVE" | "REJECT" | string;
+    decidedAt?: string | null;
+    decidedBy?: string | null;
+    notes?: string | null;
+  };
 
   // optional lifecycle fields your routes may set
-  status?: "active" | "killed" | "terminated" | string;
   killed_at?: string;
   terminated_at?: string;
   reason?: string;
@@ -26,16 +58,9 @@ if (!g.__DEMO_STORE__) {
     agents: [] as Agent[],
   };
 }
-
 const store = g.__DEMO_STORE__ as { agents: Agent[] };
 
-export async function addAgent(agent: Agent) {
-  store.agents.unshift(agent);
-  return agent;
-}
-// ---- Decisions (demo-friendly in-memory) ----
-// ---- Logs (demo-friendly in-memory) ----
-
+// --- Logs (demo-friendly in-memory) ---
 export type DemoLog = {
   id: string;
   ts: string;
@@ -46,15 +71,12 @@ export type DemoLog = {
 };
 
 if (!g.__DEMO_STORE_LOGS__) {
-  g.__DEMO_STORE_LOGS__ = {
-    logs: [] as DemoLog[],
-  };
+  g.__DEMO_STORE_LOGS__ = { logs: [] as DemoLog[] };
 }
 const logStore = g.__DEMO_STORE_LOGS__ as { logs: DemoLog[] };
 
 export async function pushLog(log: DemoLog): Promise<DemoLog> {
   logStore.logs.unshift(log);
-  // optional: cap growth
   if (logStore.logs.length > 500) logStore.logs.length = 500;
   return log;
 }
@@ -62,8 +84,10 @@ export async function pushLog(log: DemoLog): Promise<DemoLog> {
 export async function getLogs(limit = 200): Promise<DemoLog[]> {
   return logStore.logs.slice(0, Math.max(1, limit));
 }
+
+// --- Decisions (demo-friendly in-memory) ---
 export type Decision = {
-  id: string;                 // decision id (or same as agent id, depending on your app)
+  id: string;
   agentId?: string;
   decision: "ALLOW" | "DENY" | "PENDING" | string;
   decided_at?: string;
@@ -74,57 +98,38 @@ export type Decision = {
 };
 
 if (!g.__DEMO_STORE_DECISIONS__) {
-  g.__DEMO_STORE_DECISIONS__ = {
-    decisions: [] as Decision[],
-  };
+  g.__DEMO_STORE_DECISIONS__ = { decisions: [] as Decision[] };
 }
 const decisionStore = g.__DEMO_STORE_DECISIONS__ as { decisions: Decision[] };
-// ---- Outbox (demo-friendly in-memory) ----
 
+// --- Outbox (demo-friendly in-memory) ---
 export type OutboxMessage = {
   id: string;
   ts: string;
-
-  // who/where
   to?: string;
   channel?: "email" | "sms" | "slack" | string;
-
-  // what
   subject?: string;
   body?: string;
   template?: string;
-
-  // related entity
   decision_id?: string;
   agent_id?: string;
-
-  // anything else the app wants to attach
   [key: string]: any;
 };
 
 if (!g.__DEMO_STORE_OUTBOX__) {
-  g.__DEMO_STORE_OUTBOX__ = {
-    outbox: [] as OutboxMessage[],
-  };
+  g.__DEMO_STORE_OUTBOX__ = { outbox: [] as OutboxMessage[] };
 }
 const outboxStore = g.__DEMO_STORE_OUTBOX__ as { outbox: OutboxMessage[] };
 
-/**
- * Push a message to the outbox queue (for demo notifications).
- * Returns the queued message.
- */
 export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
   outboxStore.outbox.unshift(msg);
   return msg;
 }
+
 export async function getDecision(id: string): Promise<Decision | null> {
   return decisionStore.decisions.find((d) => d.id === id) ?? null;
 }
 
-/**
- * Update a decision by id (creates it if missing).
- * This matches typical "updateDecision" semantics used by demo APIs.
- */
 export async function updateDecision(
   id: string,
   patch: Partial<Decision> & { id?: string }
@@ -142,10 +147,16 @@ export async function updateDecision(
   return updated;
 }
 
-
+// --- Agents ---
 export async function listAgents(): Promise<Agent[]> {
   return store.agents;
 }
+
+export async function addAgent(agent: Agent) {
+  store.agents.unshift(agent);
+  return agent;
+}
+
 export async function upsertAgent(agent: Agent): Promise<Agent> {
   const idx = store.agents.findIndex((a) => a.id === agent.id);
   if (idx === -1) {
@@ -161,22 +172,11 @@ export async function getAgent(id: string): Promise<Agent | null> {
   return store.agents.find((a) => a.id === id) ?? null;
 }
 
-/**
- * Update an agent by id with a partial patch.
- * Returns the updated agent, or null if not found.
- */
-export async function updateAgent(
-  id: string,
-  patch: Partial<Agent>
-): Promise<Agent | null> {
+export async function updateAgent(id: string, patch: Partial<Agent>): Promise<Agent | null> {
   const idx = store.agents.findIndex((a) => a.id === id);
   if (idx === -1) return null;
 
-  const updated: Agent = {
-    ...store.agents[idx],
-    ...patch,
-  };
-
+  const updated: Agent = { ...store.agents[idx], ...patch };
   store.agents[idx] = updated;
   return updated;
 }
