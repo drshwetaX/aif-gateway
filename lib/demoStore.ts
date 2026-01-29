@@ -1,6 +1,16 @@
 // lib/demoStore.ts
+import fs from "fs";
+import path from "path";
 
-export type AgentStatus = "requested" | "approved" | "paused" | "killed" | "terminated" | "active" | string;
+export type AgentStatus =
+  | "requested"
+  | "approved"
+  | "paused"
+  | "killed"
+  | "terminated"
+  | "active"
+  | string;
+
 export type AgentEnv = "prod" | "test" | "sandbox" | string;
 export type AgentStage = "poc" | "pilot" | "prod" | string;
 
@@ -23,14 +33,14 @@ export type Agent = {
   status?: AgentStatus;
   approved?: boolean;
 
-  // timestamps (keep created_at to satisfy your existing type)
+  // timestamps
   created_at: string;
   requested_at?: string;
   approved_at?: string;
 
-  // extra metadata you asked for
-  env?: AgentEnv;          // prod/test/sandbox
-  stage?: AgentStage;      // poc/pilot/prod
+  // extra metadata
+  env?: AgentEnv;
+  stage?: AgentStage;
   review_notes?: string | null;
 
   review?: {
@@ -40,27 +50,15 @@ export type Agent = {
     notes?: string | null;
   };
 
-  // optional lifecycle fields your routes may set
+  // optional lifecycle fields
   killed_at?: string;
   terminated_at?: string;
   reason?: string;
 
-  // allow future fields without TS fights
   [key: string]: any;
 };
 
-// Simple in-memory store (demo-friendly).
-// NOTE: Resets on server restart and won't persist across deployments.
-const g = globalThis as any;
-
-if (!g.__DEMO_STORE__) {
-  g.__DEMO_STORE__ = {
-    agents: [] as Agent[],
-  };
-}
-const store = g.__DEMO_STORE__ as { agents: Agent[] };
-
-// --- Logs (demo-friendly in-memory) ---
+// --- Logs ---
 export type DemoLog = {
   id: string;
   ts: string;
@@ -70,22 +68,7 @@ export type DemoLog = {
   [key: string]: any;
 };
 
-if (!g.__DEMO_STORE_LOGS__) {
-  g.__DEMO_STORE_LOGS__ = { logs: [] as DemoLog[] };
-}
-const logStore = g.__DEMO_STORE_LOGS__ as { logs: DemoLog[] };
-
-export async function pushLog(log: DemoLog): Promise<DemoLog> {
-  logStore.logs.unshift(log);
-  if (logStore.logs.length > 500) logStore.logs.length = 500;
-  return log;
-}
-
-export async function getLogs(limit = 200): Promise<DemoLog[]> {
-  return logStore.logs.slice(0, Math.max(1, limit));
-}
-
-// --- Decisions (demo-friendly in-memory) ---
+// --- Decisions ---
 export type Decision = {
   id: string;
   agentId?: string;
@@ -97,12 +80,7 @@ export type Decision = {
   [key: string]: any;
 };
 
-if (!g.__DEMO_STORE_DECISIONS__) {
-  g.__DEMO_STORE_DECISIONS__ = { decisions: [] as Decision[] };
-}
-const decisionStore = g.__DEMO_STORE_DECISIONS__ as { decisions: Decision[] };
-
-// --- Outbox (demo-friendly in-memory) ---
+// --- Outbox ---
 export type OutboxMessage = {
   id: string;
   ts: string;
@@ -116,44 +94,112 @@ export type OutboxMessage = {
   [key: string]: any;
 };
 
-if (!g.__DEMO_STORE_OUTBOX__) {
-  g.__DEMO_STORE_OUTBOX__ = { outbox: [] as OutboxMessage[] };
-}
-const outboxStore = g.__DEMO_STORE_OUTBOX__ as { outbox: OutboxMessage[] };
+type PersistedStore = {
+  agents: Agent[];
+  logs: DemoLog[];
+  decisions: Decision[];
+  outbox: OutboxMessage[];
+};
 
-export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
-  outboxStore.outbox.unshift(msg);
-  return msg;
+const DATA_DIR = path.join(process.cwd(), ".data");
+const DATA_FILE = path.join(DATA_DIR, "demoStore.json");
+
+function ensureFile() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) {
+    const initial: PersistedStore = { agents: [], logs: [], decisions: [], outbox: [] };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), "utf8");
+  }
 }
 
+function readStore(): PersistedStore {
+  ensureFile();
+  try {
+    const raw = fs.readFileSync(DATA_FILE, "utf8");
+    const parsed = JSON.parse(raw || "{}") as Partial<PersistedStore>;
+    return {
+      agents: Array.isArray(parsed.agents) ? parsed.agents : [],
+      logs: Array.isArray(parsed.logs) ? parsed.logs : [],
+      decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+      outbox: Array.isArray(parsed.outbox) ? parsed.outbox : [],
+    };
+  } catch {
+    // If file is corrupted, don’t crash the demo—start fresh
+    const fresh: PersistedStore = { agents: [], logs: [], decisions: [], outbox: [] };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), "utf8");
+    return fresh;
+  }
+}
+
+// Simple write queue to avoid clobbering on rapid writes
+let writeChain: Promise<void> = Promise.resolve();
+
+function writeStore(next: PersistedStore): Promise<void> {
+  ensureFile();
+  writeChain = writeChain.then(async () => {
+    await fs.promises.writeFile(DATA_FILE, JSON.stringify(next, null, 2), "utf8");
+  });
+  return writeChain;
+}
+
+// In-process cache so reads are fast; file is source of truth on first load.
+const g = globalThis as any;
+if (!g.__DEMO_STORE_PERSIST__) {
+  g.__DEMO_STORE_PERSIST__ = readStore();
+}
+const store = g.__DEMO_STORE_PERSIST__ as PersistedStore;
+
+// ----- Logs -----
+export async function pushLog(log: DemoLog): Promise<DemoLog> {
+  store.logs.unshift(log);
+  if (store.logs.length > 500) store.logs.length = 500;
+  await writeStore(store);
+  return log;
+}
+
+export async function getLogs(limit = 200): Promise<DemoLog[]> {
+  return store.logs.slice(0, Math.max(1, limit));
+}
+
+// ----- Decisions -----
 export async function getDecision(id: string): Promise<Decision | null> {
-  return decisionStore.decisions.find((d) => d.id === id) ?? null;
+  return store.decisions.find((d) => d.id === id) ?? null;
 }
 
 export async function updateDecision(
   id: string,
   patch: Partial<Decision> & { id?: string }
 ): Promise<Decision> {
-  const idx = decisionStore.decisions.findIndex((d) => d.id === id);
+  const idx = store.decisions.findIndex((d) => d.id === id);
 
   if (idx === -1) {
     const created: Decision = { id, decision: "PENDING", ...patch };
-    decisionStore.decisions.unshift(created);
+    store.decisions.unshift(created);
+    await writeStore(store);
     return created;
   }
 
-  const updated: Decision = { ...decisionStore.decisions[idx], ...patch, id };
-  decisionStore.decisions[idx] = updated;
+  const updated: Decision = { ...store.decisions[idx], ...patch, id };
+  store.decisions[idx] = updated;
+  await writeStore(store);
   return updated;
 }
 
-// --- Agents ---
+// ----- Outbox -----
+export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
+  store.outbox.unshift(msg);
+  await writeStore(store);
+  return msg;
+}
+
+// ----- Agents -----
 export async function listAgents(): Promise<Agent[]> {
   return store.agents;
 }
 
 export async function addAgent(agent: Agent) {
   store.agents.unshift(agent);
+  await writeStore(store);
   return agent;
 }
 
@@ -161,10 +207,12 @@ export async function upsertAgent(agent: Agent): Promise<Agent> {
   const idx = store.agents.findIndex((a) => a.id === agent.id);
   if (idx === -1) {
     store.agents.unshift(agent);
+    await writeStore(store);
     return agent;
   }
   const updated: Agent = { ...store.agents[idx], ...agent };
   store.agents[idx] = updated;
+  await writeStore(store);
   return updated;
 }
 
@@ -178,9 +226,11 @@ export async function updateAgent(id: string, patch: Partial<Agent>): Promise<Ag
 
   const updated: Agent = { ...store.agents[idx], ...patch };
   store.agents[idx] = updated;
+  await writeStore(store);
   return updated;
 }
 
 export async function clearAgents() {
   store.agents = [];
+  await writeStore(store);
 }
