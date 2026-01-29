@@ -52,7 +52,44 @@ if (!g.__DEMO_STORE_DECISIONS__) {
   };
 }
 const decisionStore = g.__DEMO_STORE_DECISIONS__ as { decisions: Decision[] };
+// ---- Outbox (demo-friendly in-memory) ----
 
+export type OutboxMessage = {
+  id: string;
+  ts: string;
+
+  // who/where
+  to?: string;
+  channel?: "email" | "sms" | "slack" | string;
+
+  // what
+  subject?: string;
+  body?: string;
+  template?: string;
+
+  // related entity
+  decision_id?: string;
+  agent_id?: string;
+
+  // anything else the app wants to attach
+  [key: string]: any;
+};
+
+if (!g.__DEMO_STORE_OUTBOX__) {
+  g.__DEMO_STORE_OUTBOX__ = {
+    outbox: [] as OutboxMessage[],
+  };
+}
+const outboxStore = g.__DEMO_STORE_OUTBOX__ as { outbox: OutboxMessage[] };
+
+/**
+ * Push a message to the outbox queue (for demo notifications).
+ * Returns the queued message.
+ */
+export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
+  outboxStore.outbox.unshift(msg);
+  return msg;
+}
 export async function getDecision(id: string): Promise<Decision | null> {
   return decisionStore.decisions.find((d) => d.id === id) ?? null;
 }
