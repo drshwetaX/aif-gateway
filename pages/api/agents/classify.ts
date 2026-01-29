@@ -1,0 +1,103 @@
+ import type { NextApiRequest, NextApiResponse } from "next";
+import { buildIntent } from "@/lib/policy/intent";
+import { resolveTier, controlsForTier, type Tier, type AgentIntent } from "@/lib/policy/policyEngine";
+import { loadAuraPolicy } from "@/lib/policy/loadPolicy";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function intentFromProblemStatement(problem_statement: string): AgentIntent {
+  const text = (problem_statement || "").toLowerCase();
+  const intent: AgentIntent = {
+    actions: ["retrieve"],
+    systems: ["kb"],
+    dataSensitivity: "INTERNAL",
+    crossBorder: false,
+  };
+
+  if (/\b(update|write|create|submit|change|delete|approve|send)\b/.test(text)) {
+    intent.actions = ["update_record"];
+    intent.systems = ["salesforce"];
+  }
+  if (/\b(workday|hr|employee|onboarding)\b/.test(text)) {
+    intent.systems = ["workday"];
+  }
+  if (/\b(pii|sin|ssn|passport|medical|claim|benefit)\b/.test(text)) {
+    intent.dataSensitivity = "PII";
+  }
+  if (/\b(cross[- ]border|international|outside canada|eu|uk|us)\b/.test(text)) {
+    intent.crossBorder = true;
+  }
+  return intent;
+}
+
+function explainTiering(intent: AgentIntent, finalTier: Tier) {
+  const policy = loadAuraPolicy();
+  const rules = (policy.tiering?.rules ?? []) as any[];
+
+  const matched: Array<{ ruleId: string; thenTier: string; reason: string }> = [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    const cond = r?.if ?? {};
+
+    const actionsAny = cond.actionsAny as string[] | undefined;
+    const actionsOnly = cond.actionsOnly as string[] | undefined;
+    const systemsAny = cond.systemsAny as string[] | undefined;
+    const dataSensitivityIn = cond.dataSensitivityIn as string[] | undefined;
+    const crossBorder = cond.crossBorder as boolean | undefined;
+
+    const ok =
+      (actionsAny ? actionsAny.some((a) => intent.actions.includes(a)) : true) &&
+      (actionsOnly ? intent.actions.length > 0 && intent.actions.every((a) => actionsOnly.includes(a)) : true) &&
+      (systemsAny ? systemsAny.some((s) => intent.systems.includes(s)) : true) &&
+      (dataSensitivityIn ? dataSensitivityIn.includes(intent.dataSensitivity ?? "") : true) &&
+      (crossBorder !== undefined ? crossBorder === !!intent.crossBorder : true);
+
+    if (!ok) continue;
+
+    matched.push({
+      ruleId: String(r?.id ?? `rule_${i}`),
+      thenTier: String(r?.thenTier ?? ""),
+      reason: JSON.stringify(r?.if ?? {}),
+    });
+  }
+
+  return { finalTier, matched_rule_ids: matched.map((m) => m.ruleId), matched_rules: matched };
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+
+  const body = req.body || {};
+  const name = String(body.name || "Demo Agent");
+  const overrideTier = body.override_tier ? String(body.override_tier) : "";
+  const problemStatement = body.problem_statement ? String(body.problem_statement) : "";
+
+  let intent = buildIntent(body);
+  if ((!intent.actions || intent.actions.length === 0) && problemStatement) intent = intentFromProblemStatement(problemStatement);
+  if (!Array.isArray(intent.actions) || intent.actions.length === 0) intent.actions = ["retrieve"];
+  if (!Array.isArray(intent.systems) || intent.systems.length === 0) intent.systems = ["kb"];
+
+  let tier = resolveTier(intent);
+  if (overrideTier && ["A1", "A2", "A3", "A4", "A5", "A6"].includes(overrideTier)) tier = overrideTier as any;
+
+  const controls = controlsForTier(tier);
+  const tiering_explain = explainTiering(intent, tier);
+
+  return res.status(200).json({
+    ok: true,
+    ts: nowIso(),
+    name,
+    problem_statement: problemStatement,
+    intent,
+    risk_tier: tier,
+    controls,
+    policy_version: loadAuraPolicy()?.version ?? "unknown",
+    tiering_explain,
+  });
+}
