@@ -177,13 +177,34 @@ export default function RegisterAgentPage() {
     }
   }
 
-  function ask(q: string) {
-    const question = q.trim();
-    if (!question) return;
-    const a = answerSpecQuestion(question, out);
-    setChat((prev) => [...prev, { role: "user", text: question }, { role: "assistant", text: a }]);
-    setChatInput("");
+  async function ask(q: string) {
+  const question = q.trim();
+  if (!question) return;
+
+  // Add the user message immediately
+  setChat((prev) => [...prev, { role: "user", text: question }]);
+  setChatInput("");
+
+  try {
+    const r = await fetch("/api/spec-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, agentSpec: out }),
+    });
+
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error || `Spec chat failed (HTTP ${r.status})`);
+
+    const answer = j?.answer || "No answer returned.";
+    setChat((prev) => [...prev, { role: "assistant", text: answer }]);
+  } catch (e: any) {
+    setChat((prev) => [
+      ...prev,
+      { role: "assistant", text: `Error: ${e?.message || "spec chat failed"}` },
+    ]);
   }
+}
+
 
   const tier = out?.risk_tier;
 
