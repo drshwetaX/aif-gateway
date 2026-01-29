@@ -169,7 +169,7 @@ export default function RegisterAgentPage() {
   const tier = out?.risk_tier;
 
   return (
-    <ConsoleShell title="Register agent">
+    <>
       <p className="mt-2 text-sm text-zinc-600">Problem statement → policy classification → tier + controls.</p>
 
       {err && (
@@ -463,6 +463,6 @@ export default function RegisterAgentPage() {
           )}
         </div>
       </div>
-    </ConsoleShell>
+    </>
   );
 }
