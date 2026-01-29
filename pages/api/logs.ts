@@ -1,24 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-
-
+import demoStore from "@/lib/demoStore"; // OR: import { demoStore } from "@/lib/demoStore";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).json({ error: "method_not_allowed" });
-  }
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    // Try common method names—pick the one that exists in your Store
+    const store: any = demoStore; // normalize name so you can call store.*
+
     const entries =
-      (await (Store as any).readAudit?.({ limit: 50 })) ??
-      (await (Store as any).listAudit?.({ limit: 50 })) ??
-      (await (Store as any).getAudit?.({ limit: 50 })) ??
+      (await store.readAudit?.({ limit: 50 })) ??
+      (await store.listAudit?.({ limit: 50 })) ??
+      (await store.getAudit?.({ limit: 50 })) ??
       [];
 
-    return res.status(200).json({ logs: entries });
-  } catch (err: any) {
-    console.error("logs error", err);
-    return res.status(500).json({ error: "failed_to_read_logs" });
+    return res.status(200).json({ ok: true, entries });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e?.message ?? "Unknown error" });
   }
 }
