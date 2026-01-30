@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAgent } from "@/lib/demoStore";
+import { getAgent, updateAgent } from "@/lib/demoStore";
 import { writeAudit } from "@/lib/audit/audit";
 
 function nowIso() {
