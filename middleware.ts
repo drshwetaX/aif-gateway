@@ -25,10 +25,15 @@ const SERVICE_PATHS = [
   "/api/agents/list",
 ];
 
-function hasServiceToken(request: NextRequest) {
+function hasValidServiceToken(request: NextRequest) {
   const auth = request.headers.get("authorization") || "";
-  return auth.startsWith("Bearer ");
+  if (!auth.startsWith("Bearer ")) return false;
+
+  const token = auth.slice(7);
+  const expected = process.env.GATE_API_TOKEN || "";
+  return !!expected && token === expected;
 }
+
 
 function isServicePath(pathname: string) {
   return SERVICE_PATHS.some((p) => pathname.startsWith(p));
@@ -47,6 +52,27 @@ export function middleware(request: NextRequest) {
   if (BYPASS_LOGIN) return NextResponse.next();
 
   const { pathname, search } = request.nextUrl;
+  const isApi = pathname.startsWith("/api/");
+
+  // 🔒 APIs must never redirect to /login
+  if (isApi) {
+    // allow public APIs
+    if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC.has(pathname)) {
+      return NextResponse.next();
+    }
+
+    // allow browser session cookie
+    const token = request.cookies.get(getCookieName())?.value || "";
+    const session = tryDecodeSession(token);
+    if (session) {
+      const res = NextResponse.next();
+      res.headers.set("x-demo-user", session.email);
+      return res;
+    }
+
+    // ❌ API = JSON 401, never redirect
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   // ✅ Allow server-to-server calls with Bearer token to service endpoints
   if (isServicePath(pathname) && hasServiceToken(request)) {
