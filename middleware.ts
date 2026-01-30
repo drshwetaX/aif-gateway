@@ -1,3 +1,4 @@
+// middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCookieName,
@@ -15,20 +16,22 @@ const PUBLIC = new Set([
   "/api/auth/login",
   "/api/health",
 ]);
-const SERVICE_PATHS = ["/api/gate", "/api/agents/check", "/api/agents/register", "/api/agents/classify", "/api/agents/list"];
 
-function hasServiceToken(req: NextRequest) {
-  const auth = req.headers.get("authorization") || "";
+const SERVICE_PATHS = [
+  "/api/gate",
+  "/api/agents/check",
+  "/api/agents/register",
+  "/api/agents/classify",
+  "/api/agents/list",
+];
+
+function hasServiceToken(request: NextRequest) {
+  const auth = request.headers.get("authorization") || "";
   return auth.startsWith("Bearer ");
 }
 
 function isServicePath(pathname: string) {
   return SERVICE_PATHS.some((p) => pathname.startsWith(p));
-}
-
-// ...
-if (isServicePath(req.nextUrl.pathname) && hasServiceToken(req)) {
-  return NextResponse.next();
 }
 
 // Public API routes that must never redirect to /login
@@ -44,6 +47,11 @@ export function middleware(request: NextRequest) {
   if (BYPASS_LOGIN) return NextResponse.next();
 
   const { pathname, search } = request.nextUrl;
+
+  // ✅ Allow server-to-server calls with Bearer token to service endpoints
+  if (isServicePath(pathname) && hasServiceToken(request)) {
+    return NextResponse.next();
+  }
 
   // Skip Next.js internals & static assets
   if (pathname.startsWith("/_next") || pathname.includes(".")) {
@@ -65,7 +73,7 @@ export function middleware(request: NextRequest) {
 
   // Demo expired → force login
   if (isExpiredNow()) {
-    const url = req.nextUrl.clone();
+    const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("expired", "1");
     url.searchParams.set("next", fullNext);
@@ -73,12 +81,12 @@ export function middleware(request: NextRequest) {
   }
 
   // Decode session (edge-safe)
-  const token = req.cookies.get(getCookieName())?.value || "";
+  const token = request.cookies.get(getCookieName())?.value || "";
   const session = tryDecodeSession(token);
 
   // No session → login + preserve destination
   if (!session) {
-    const url = req.nextUrl.clone();
+    const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("reason", "no_session");
     url.searchParams.set("next", fullNext);
@@ -90,7 +98,7 @@ export function middleware(request: NextRequest) {
     !!process.env.DEMO_ALLOWED_EMAILS || !!process.env.DEMO_ALLOWED_DOMAINS;
 
   if (hasEdgeAllowlist && !isEmailAllowed(session.email)) {
-    const url = req.nextUrl.clone();
+    const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("reason", "not_allowlisted");
     url.searchParams.set("next", fullNext);
