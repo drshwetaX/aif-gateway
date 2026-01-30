@@ -40,7 +40,7 @@ const PUBLIC_PATHS = [
   "/api/foundry", // server-to-server (Bearer auth inside handler)
 ];
 
-export function middleware(req: NextRequest) {
+export function middleware(request: NextRequest) {
   if (BYPASS_LOGIN) return NextResponse.next();
 
   const { pathname, search } = req.nextUrl;
