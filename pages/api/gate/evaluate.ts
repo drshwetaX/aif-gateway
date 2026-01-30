@@ -1,3 +1,14 @@
+export default async function handler(req, res) {
+  const auth = (req.headers["authorization"] as string) || "";
+  const xauth = (req.headers["x-service-authorization"] as string) || "";
+
+  console.log("AUTH hdr:", auth);
+  console.log("AUTH len:", auth.length);
+  console.log("XAUTH hdr:", xauth);
+  console.log("XAUTH len:", xauth.length);
+
+  // keep going...
+}
 import type { NextApiRequest, NextApiResponse } from "next";
 
 function assertAuth(req: NextApiRequest) {
