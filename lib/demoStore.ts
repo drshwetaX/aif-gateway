@@ -1,7 +1,8 @@
 // lib/demoStore.ts
 import fs from "fs";
 import path from "path";
-import { getRedis } from "./redis";
+import { redis } from "./redis";
+
 
 export type AgentStatus =
   | "requested"
