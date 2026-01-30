@@ -76,7 +76,16 @@ if (isApi) {
     }
 
     // ❌ API = JSON 401, never redirect
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(return NextResponse.json(
+  { error: "Unauthorized" },
+  {
+    status: 401,
+    headers: {
+      "x-auth-debug": process.env.AIF_SERVICE_TOKEN ? "token-mismatch" : "missing-env",
+    },
+  }
+);
+
   }
 
 
