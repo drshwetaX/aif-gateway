@@ -1,53 +1,38 @@
 // lib/redis.ts
-const REST_URL =
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  "";
+type UpstashResp<T> = { result: T; error?: string };
 
-const REST_TOKEN =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  "";
+const url = process.env.UPSTASH_REDIS_REST_URL;
+const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-function assertEnv() {
-  if (!REST_URL || !REST_TOKEN) {
-    throw new Error("Missing Redis REST env vars");
-  }
+async function upstash<T>(cmd: string, args: (string | number)[] = []): Promise<T> {
+  if (!url || !token) throw new Error("Upstash Redis env vars not set");
+  const endpoint = `${url}/${cmd}/${args.map((x) => encodeURIComponent(String(x))).join("/")}`;
+
+  const r = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+  const j = (await r.json()) as UpstashResp<T>;
+
+  if ((j as any)?.error) throw new Error(String((j as any).error));
+  return j.result;
 }
 
-export async function getRedis() {
-  // only create Redis client when env exists
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return null;
-  }
-  const { Redis } = await import("@upstash/redis");
-  return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
+export function getRedis() {
+  return {
+    lrange: (key: string, start: number, stop: number) => upstash<any[]>("lrange", [key, start, stop]),
+    get: (key: string) => upstash<string | null>("get", [key]),
+    set: (key: string, value: string) => upstash<"OK">("set", [key, value]),
+    lpush: (key: string, value: string) => upstash<number>("lpush", [key, value]),
+    lrem: (key: string, count: number, value: string) => upstash<number>("lrem", [key, count, value]),
+    ltrim: (key: string, start: number, stop: number) => upstash<"OK">("ltrim", [key, start, stop]),
+    del: (key: string) => upstash<number>("del", [key]),
 
-export async function multiExec(commands: (string | number)[][]) {
-  assertEnv();
-  const res = await fetch(`${REST_URL}/multi-exec`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${REST_TOKEN}`,
-      "Content-Type": "application/json",
+    // demo-friendly multiExec: sequential execution (OK for <500 items demo scale)
+    multiExec: async (commands: Array<[string, ...any[]]>) => {
+      const out: any[] = [];
+      for (const c of commands) {
+        const [cmd, ...args] = c;
+        out.push(await upstash<any>(cmd, args as any));
+      }
+      return out;
     },
-    body: JSON.stringify(commands),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || "Redis error");
-  return data;
-}
-
-export async function cmdUrl(path: string) {
-  assertEnv();
-  const res = await fetch(`${REST_URL}/${path}`, {
-    headers: { Authorization: `Bearer ${REST_TOKEN}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || "Redis error");
-  return data?.result;
+  };
 }
