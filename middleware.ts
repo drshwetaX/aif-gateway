@@ -74,10 +74,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ✅ Allow server-to-server calls with Bearer token to service endpoints
-  if (isServicePath(pathname) && hasServiceToken(request)) {
-    return NextResponse.next();
-  }
 
   // Skip Next.js internals & static assets
   if (pathname.startsWith("/_next") || pathname.includes(".")) {
