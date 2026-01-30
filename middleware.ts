@@ -25,14 +25,28 @@ const SERVICE_PATHS = [
   "/api/agents/list",
 ];
 
-function hasValidServiceToken(request: NextRequest) {
+ function hasValidServiceToken(request: NextRequest) {
   const auth = request.headers.get("authorization") || "";
   if (!auth.startsWith("Bearer ")) return false;
 
-  const token = auth.slice(7);
-  const expected = process.env.AIF_SERVICE_TOKEN || "";
-  return !!expected && token === expected;
+  const token = auth.slice(7).trim();
+  const expected = (process.env.AIF_SERVICE_TOKEN || "").trim();
+
+  // 🔎 SAFE debug: no secrets, only lengths + first/last chars
+  const t = token;
+  const e = expected;
+
+  const tSig =
+    t.length >= 2 ? `${t[0]}…${t[t.length - 1]}(len=${t.length})` : `(len=${t.length})`;
+  const eSig =
+    e.length >= 2 ? `${e[0]}…${e[e.length - 1]}(len=${e.length})` : `(len=${e.length})`;
+
+  // attach debug headers only for service paths
+  (request as any).__authDebug = { tSig, eSig };
+
+  return !!e && t === e;
 }
+
 
 
 function isServicePath(pathname: string) {
@@ -77,7 +91,8 @@ if (isApi) {
 
     // ❌ API = JSON 401, never redirect
     return NextResponse.json(
-  { error: "Unauthorized" },
+  { error: "Unauthorized",
+  "debug": { "tSig": "1…4(len=19)", "eSig": "9…5(len=64)" },
   {
     status: 401,
     headers: {
