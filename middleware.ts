@@ -91,13 +91,15 @@ if (isApi) {
 
     // ❌ API = JSON 401, never redirect
     return NextResponse.json(
-  { error: "Unauthorized",
-  "debug": { "tSig": "1…4(len=19)", "eSig": "9…5(len=64)" },
+  {
+    error: "Unauthorized",
+    debug: { tSig: "1…4(len=19)", eSig: "9…5(len=64)" }
+  },
   {
     status: 401,
     headers: {
-      "x-auth-debug": process.env.AIF_SERVICE_TOKEN ? "token-mismatch" : "missing-env",
-    },
+      "x-auth-debug": process.env.AIF_SERVICE_TOKEN ? "token-mismatch" : "missing-env"
+    }
   }
 );
 
