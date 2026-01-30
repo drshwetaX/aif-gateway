@@ -12,9 +12,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     await multiExec([
-      () => redis.lpush(KEY, entry),
-      () => redis.ltrim(KEY, 0, 49),
-    ]);
+  () => redis.lpush(KEY, entry) as Promise<any>,
+  () => redis.ltrim(KEY, 0, 49) as Promise<any>,
+]);
+
 
     res.status(200).json({ ok: true });
   } catch (e: any) {
