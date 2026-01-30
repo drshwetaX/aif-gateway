@@ -54,12 +54,17 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
-  // 🔒 APIs must never redirect to /login
-  if (isApi) {
-    // allow public APIs
-    if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC.has(pathname)) {
-      return NextResponse.next();
-    }
+  / 🔒 APIs must never redirect to /login
+if (isApi) {
+  // ✅ Let preflight requests succeed
+  if (request.method === "OPTIONS") {
+    return new NextResponse(null, { status: 204 });
+  }
+
+  // allow public APIs
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC.has(pathname)) {
+    return NextResponse.next();
+  }
 
     // allow browser session cookie
     const token = request.cookies.get(getCookieName())?.value || "";
