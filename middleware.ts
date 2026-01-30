@@ -54,7 +54,7 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
-  / 🔒 APIs must never redirect to /login
+  // 🔒 APIs must never redirect to /login
 if (isApi) {
   // ✅ Let preflight requests succeed
   if (request.method === "OPTIONS") {
