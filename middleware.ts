@@ -15,6 +15,21 @@ const PUBLIC = new Set([
   "/api/auth/login",
   "/api/health",
 ]);
+const SERVICE_PATHS = ["/api/gate", "/api/agents/check", "/api/agents/register", "/api/agents/classify", "/api/agents/list"];
+
+function hasServiceToken(req: NextRequest) {
+  const auth = req.headers.get("authorization") || "";
+  return auth.startsWith("Bearer ");
+}
+
+function isServicePath(pathname: string) {
+  return SERVICE_PATHS.some((p) => pathname.startsWith(p));
+}
+
+// ...
+if (isServicePath(req.nextUrl.pathname) && hasServiceToken(req)) {
+  return NextResponse.next();
+}
 
 // Public API routes that must never redirect to /login
 const PUBLIC_PATHS = [
