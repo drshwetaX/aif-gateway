@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import { getRedis } from "./redis";
 
-
 export type AgentStatus =
   | "requested"
   | "approved"
@@ -43,6 +42,7 @@ export type Agent = {
   // extra metadata
   env?: AgentEnv;
   stage?: AgentStage;
+  comment?: string;
   review_notes?: string | null;
 
   review?: {
@@ -56,6 +56,9 @@ export type Agent = {
   killed_at?: string;
   terminated_at?: string;
   reason?: string;
+
+  // optional operational fields (like heartbeat)
+  last_seen_at?: string;
 
   [key: string]: any;
 };
@@ -104,21 +107,28 @@ type PersistedStore = {
 };
 
 // If Upstash Redis env vars are present, we treat Redis as the source of truth for agents.
-// This is the only way to keep a stable registry on Vercel/serverless.
-const USE_REDIS = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+const USE_REDIS = Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
+
 const REDIS_PREFIX = process.env.AIF_REDIS_PREFIX || "aif";
 const REDIS_AGENTS_LIST_KEY = `${REDIS_PREFIX}:agents:list`;
 const redisAgentKey = (id: string) => `${REDIS_PREFIX}:agents:${id}`;
 
+// ✅ define redis (or null)
+const redis = USE_REDIS ? getRedis() : null;
+
+// -------------------- Redis helpers (agents only) --------------------
 async function redisListAgents(): Promise<Agent[]> {
+  if (!redis) return [];
   const ids = (await redis.lrange(REDIS_AGENTS_LIST_KEY, 0, 499)) as unknown as string[];
   if (!ids?.length) return [];
 
-  // Batch GETs using pipeline
+  // Batch GETs using multiExec
   const commands = ids.map((id) => ["get", redisAgentKey(id)] as const);
   const rows = (await redis.multiExec(commands as any)) as Array<string | null>;
-  const out: Agent[] = [];
 
+  const out: Agent[] = [];
   for (const raw of rows) {
     if (!raw) continue;
     try {
@@ -131,6 +141,7 @@ async function redisListAgents(): Promise<Agent[]> {
 }
 
 async function redisGetAgent(id: string): Promise<Agent | null> {
+  if (!redis) return null;
   const raw = (await redis.get(redisAgentKey(id))) as unknown as string | null;
   if (!raw) return null;
   try {
@@ -141,6 +152,7 @@ async function redisGetAgent(id: string): Promise<Agent | null> {
 }
 
 async function redisUpsertAgent(agent: Agent): Promise<Agent> {
+  if (!redis) return agent;
   const id = agent.id;
   const json = JSON.stringify(agent);
 
@@ -151,12 +163,12 @@ async function redisUpsertAgent(agent: Agent): Promise<Agent> {
     ["lpush", REDIS_AGENTS_LIST_KEY, id],
   ] as any);
 
-  // Trim to a sane size for demo
   await redis.ltrim(REDIS_AGENTS_LIST_KEY, 0, 499);
   return agent;
 }
 
 async function redisClearAgents(): Promise<void> {
+  if (!redis) return;
   const ids = (await redis.lrange(REDIS_AGENTS_LIST_KEY, 0, 9999)) as unknown as string[];
   if (ids?.length) {
     const dels = ids.map((id) => ["del", redisAgentKey(id)] as const);
@@ -165,6 +177,7 @@ async function redisClearAgents(): Promise<void> {
   await redis.del(REDIS_AGENTS_LIST_KEY);
 }
 
+// -------------------- File-backed store (logs/decisions/outbox + fallback agents) --------------------
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "demoStore.json");
 
@@ -188,16 +201,13 @@ function readStore(): PersistedStore {
       outbox: Array.isArray(parsed.outbox) ? parsed.outbox : [],
     };
   } catch {
-    // If file is corrupted, don’t crash the demo—start fresh
     const fresh: PersistedStore = { agents: [], logs: [], decisions: [], outbox: [] };
     fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), "utf8");
     return fresh;
   }
 }
 
-// Simple write queue to avoid clobbering on rapid writes
 let writeChain: Promise<void> = Promise.resolve();
-
 function writeStore(next: PersistedStore): Promise<void> {
   ensureFile();
   writeChain = writeChain.then(async () => {
@@ -206,11 +216,9 @@ function writeStore(next: PersistedStore): Promise<void> {
   return writeChain;
 }
 
-// In-process cache so reads are fast; file is source of truth on first load.
+// In-process cache
 const g = globalThis as any;
-if (!g.__DEMO_STORE_PERSIST__) {
-  g.__DEMO_STORE_PERSIST__ = readStore();
-}
+if (!g.__DEMO_STORE_PERSIST__) g.__DEMO_STORE_PERSIST__ = readStore();
 const store = g.__DEMO_STORE_PERSIST__ as PersistedStore;
 
 // ----- Logs -----
@@ -256,18 +264,20 @@ export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
   return msg;
 }
 
-// ----- Agents -----
+// ----- Agents (Redis-backed when available) -----
 export async function listAgents(): Promise<Agent[]> {
+  if (USE_REDIS) return await redisListAgents();
   return store.agents;
 }
 
 export async function addAgent(agent: Agent) {
-  store.agents.unshift(agent);
-  await writeStore(store);
-  return agent;
+  // optional helper
+  return await upsertAgent(agent);
 }
 
 export async function upsertAgent(agent: Agent): Promise<Agent> {
+  if (USE_REDIS) return await redisUpsertAgent(agent);
+
   const idx = store.agents.findIndex((a) => a.id === agent.id);
   if (idx === -1) {
     store.agents.unshift(agent);
@@ -281,10 +291,18 @@ export async function upsertAgent(agent: Agent): Promise<Agent> {
 }
 
 export async function getAgent(id: string): Promise<Agent | null> {
+  if (USE_REDIS) return await redisGetAgent(id);
   return store.agents.find((a) => a.id === id) ?? null;
 }
 
 export async function updateAgent(id: string, patch: Partial<Agent>): Promise<Agent | null> {
+  if (USE_REDIS) {
+    const existing = await redisGetAgent(id);
+    if (!existing) return null;
+    const updated: Agent = { ...existing, ...patch };
+    return await redisUpsertAgent(updated);
+  }
+
   const idx = store.agents.findIndex((a) => a.id === id);
   if (idx === -1) return null;
 
@@ -295,6 +313,7 @@ export async function updateAgent(id: string, patch: Partial<Agent>): Promise<Ag
 }
 
 export async function clearAgents() {
+  if (USE_REDIS) return await redisClearAgents();
   store.agents = [];
   await writeStore(store);
 }
