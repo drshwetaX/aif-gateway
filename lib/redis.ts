@@ -4,19 +4,21 @@ import { Redis } from "@upstash/redis";
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-if (!url || !token) {
-  // Don’t crash at import-time in Next build; throw only when used.
-  console.warn("Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN");
-}
-
 export const redis = new Redis({
   url: url ?? "",
   token: token ?? "",
 });
 
 /**
- * Upstash REST doesn't support true MULTI/EXEC like TCP Redis clients.
- * This helper runs ops sequentially.
+ * Compatibility helper for older code that expects getRedis().
+ */
+export function getRedis() {
+  return redis;
+}
+
+/**
+ * Compatibility helper for older code that expected multi/exec style batching.
+ * Upstash REST doesn't do true MULTI/EXEC, so we run sequentially.
  */
 export async function multiExec<T = any>(ops: Array<() => Promise<T>>) {
   const results: T[] = [];
