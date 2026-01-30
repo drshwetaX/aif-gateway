@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { multiExec } from "../../../lib/redis";
+import { redis, multiExec } from "../../../lib/redis";
 
 const KEY = "aif:demo:logs";
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const entry = JSON.stringify({
@@ -10,10 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       outcome: "Allowed – context validated, read-only execution",
     });
 
-    // LPUSH + LTRIM to keep only last 50 entries (atomic)
     await multiExec([
-      ["LPUSH", KEY, entry],
-      ["LTRIM", KEY, 0, 49],
+      () => redis.lpush(KEY, entry),
+      () => redis.ltrim(KEY, 0, 49),
     ]);
 
     res.status(200).json({ ok: true });
