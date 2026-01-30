@@ -2,6 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { multiExec } from "../../../lib/redis";
 
 const KEY = "aif:demo:logs";
+import { multiExec } from "../../../lib/redis";
+
+await multiExec((m) => {
+  m.lpush(KEY, JSON.stringify(event));
+  m.ltrim(KEY, 0, 200);
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
