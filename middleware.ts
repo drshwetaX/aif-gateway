@@ -30,7 +30,7 @@ function hasValidServiceToken(request: NextRequest) {
   if (!auth.startsWith("Bearer ")) return false;
 
   const token = auth.slice(7);
-  const expected = process.env.GATE_API_TOKEN || "";
+  const expected = process.env.AIF_SERVICE_TOKEN || "";
   return !!expected && token === expected;
 }
 
