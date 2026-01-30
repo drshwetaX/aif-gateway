@@ -76,7 +76,7 @@ if (isApi) {
     }
 
     // ❌ API = JSON 401, never redirect
-    return NextResponse.json(return NextResponse.json(
+    return NextResponse.json(
   { error: "Unauthorized" },
   {
     status: 401,
