@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { multiExec } from "../../../lib/redis";
 
 const KEY = "aif:demo:logs";
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const entry = JSON.stringify({
