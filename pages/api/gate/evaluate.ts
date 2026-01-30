@@ -1,38 +1,42 @@
-export default async function handler(req, res) {
-  const auth = (req.headers["authorization"] as string) || "";
-  const xauth = (req.headers["x-service-authorization"] as string) || "";
-
-  console.log("AUTH hdr:", auth);
-  console.log("AUTH len:", auth.length);
-  console.log("XAUTH hdr:", xauth);
-  console.log("XAUTH len:", xauth.length);
-
-  // keep going...
-}
 import type { NextApiRequest, NextApiResponse } from "next";
 
 function assertAuth(req: NextApiRequest) {
   const hdr =
-  (req.headers["authorization"] as string) ||
-  (req.headers["x-service-authorization"] as string) ||
-  "";
-const token = hdr.toLowerCase().startsWith("bearer ") ? hdr.slice(7).trim() : "";
+    (req.headers["authorization"] as string) ||
+    (req.headers["x-service-authorization"] as string) ||
+    "";
 
- console.log("EVAL hdr len:", hdr.length);
-console.log("EVAL token len:", token.length);
-console.log("EVAL head/tail:", token.slice(0, 6), token.slice(-6));
+  const token = hdr.toLowerCase().startsWith("bearer ")
+    ? hdr.slice(7).trim()
+    : "";
 
-  if (!process.env.AIF_GATEWAY_API_KEY || token !== process.env.AIF_GATEWAY_API_KEY) {
+  // Debug (remove once fixed)
+  console.log("AUTH hdr:", hdr);
+  console.log("AUTH len:", hdr.length);
+  console.log("TOKEN len:", token.length);
+  console.log("TOKEN head/tail:", token.slice(0, 6), token.slice(-6));
+
+  const expected = process.env.AIF_GATEWAY_API_KEY || "";
+  if (!expected) {
+    console.log("AUTH expected missing: AIF_GATEWAY_API_KEY not set");
     return false;
   }
-  return true;
+
+  // Debug expected length (DON'T print the secret)
+  console.log("EXPECTED len:", expected.length);
+
+  return token === expected;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
 
-  // ✅ allow non-session machine calls
-  if (!assertAuth(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!assertAuth(req)) {
+    // keep your existing debug structure if you want, but this is fine for now
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const { agent_id, action, system, dataSensitivity, request_id } = req.body ?? {};
 
