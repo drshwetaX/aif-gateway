@@ -43,7 +43,7 @@ const PUBLIC_PATHS = [
 export function middleware(request: NextRequest) {
   if (BYPASS_LOGIN) return NextResponse.next();
 
-  const { pathname, search } = req.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   // Skip Next.js internals & static assets
   if (pathname.startsWith("/_next") || pathname.includes(".")) {
