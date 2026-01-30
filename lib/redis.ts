@@ -3,6 +3,23 @@ type UpstashResp<T> = { result: T; error?: string };
 
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+// lib/redis.ts
+import Redis from "ioredis";
+
+let _redis: Redis | null = null;
+
+export function redis() {
+  if (!_redis) _redis = new Redis(process.env.REDIS_URL!);
+  return _redis;
+}
+
+export async function multiExec(
+  fn: (multi: ReturnType<Redis["multi"]>) => void
+) {
+  const m = redis().multi();
+  fn(m);
+  return await m.exec();
+}
 
 async function upstash<T>(cmd: string, args: (string | number)[] = []): Promise<T> {
   if (!url || !token) throw new Error("Upstash Redis env vars not set");
