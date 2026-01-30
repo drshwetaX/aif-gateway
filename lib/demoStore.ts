@@ -1,7 +1,7 @@
 // lib/demoStore.ts
 import fs from "fs";
 import path from "path";
-import { getRedis } from "./r";
+import { getRedis } from "./redis";
 const r = getRedis();
 
 
