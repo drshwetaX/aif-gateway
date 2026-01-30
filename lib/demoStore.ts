@@ -1,7 +1,8 @@
 // lib/demoStore.ts
 import fs from "fs";
 import path from "path";
-import { redis } from "./redis";
+import { getRedis } from "./r";
+const r = getRedis();
 
 
 export type AgentStatus =
@@ -107,7 +108,7 @@ type PersistedStore = {
   outbox: OutboxMessage[];
 };
 
-// If Upstash Redis env vars are present, we treat Redis as the source of truth for agents.
+// If Upstash r env vars are present, we treat r as the source of truth for agents.
 const USE_REDIS = Boolean(
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
 );
@@ -116,18 +117,18 @@ const REDIS_PREFIX = process.env.AIF_REDIS_PREFIX || "aif";
 const REDIS_AGENTS_LIST_KEY = `${REDIS_PREFIX}:agents:list`;
 const redisAgentKey = (id: string) => `${REDIS_PREFIX}:agents:${id}`;
 
-// ✅ define redis (or null)
-const redis = USE_REDIS ? getRedis() : null;
+// ✅ define r (or null)
+const r = USE_REDIS ? getRedis() : null;
 
-// -------------------- Redis helpers (agents only) --------------------
+// -------------------- r helpers (agents only) --------------------
 async function redisListAgents(): Promise<Agent[]> {
-  if (!redis) return [];
-  const ids = (await redis.lrange(REDIS_AGENTS_LIST_KEY, 0, 499)) as unknown as string[];
+  if (!r) return [];
+  const ids = (await r.lrange(REDIS_AGENTS_LIST_KEY, 0, 499)) as unknown as string[];
   if (!ids?.length) return [];
 
   // Batch GETs using multiExec
   const commands = ids.map((id) => ["get", redisAgentKey(id)] as const);
-  const rows = (await redis.multiExec(commands as any)) as Array<string | null>;
+  const rows = (await r.multiExec(commands as any)) as Array<string | null>;
 
   const out: Agent[] = [];
   for (const raw of rows) {
@@ -142,8 +143,8 @@ async function redisListAgents(): Promise<Agent[]> {
 }
 
 async function redisGetAgent(id: string): Promise<Agent | null> {
-  if (!redis) return null;
-  const raw = (await redis.get(redisAgentKey(id))) as unknown as string | null;
+  if (!r) return null;
+  const raw = (await r.get(redisAgentKey(id))) as unknown as string | null;
   if (!raw) return null;
   try {
     return JSON.parse(raw) as Agent;
@@ -153,29 +154,29 @@ async function redisGetAgent(id: string): Promise<Agent | null> {
 }
 
 async function redisUpsertAgent(agent: Agent): Promise<Agent> {
-  if (!redis) return agent;
+  if (!r) return agent;
   const id = agent.id;
   const json = JSON.stringify(agent);
 
   // Keep list ordered by most-recent update: remove then LPUSH
-  await redis.multiExec([
+  await r.multiExec([
     ["set", redisAgentKey(id), json],
     ["lrem", REDIS_AGENTS_LIST_KEY, 0, id],
     ["lpush", REDIS_AGENTS_LIST_KEY, id],
   ] as any);
 
-  await redis.ltrim(REDIS_AGENTS_LIST_KEY, 0, 499);
+  await r.ltrim(REDIS_AGENTS_LIST_KEY, 0, 499);
   return agent;
 }
 
 async function redisClearAgents(): Promise<void> {
-  if (!redis) return;
-  const ids = (await redis.lrange(REDIS_AGENTS_LIST_KEY, 0, 9999)) as unknown as string[];
+  if (!r) return;
+  const ids = (await r.lrange(REDIS_AGENTS_LIST_KEY, 0, 9999)) as unknown as string[];
   if (ids?.length) {
     const dels = ids.map((id) => ["del", redisAgentKey(id)] as const);
-    await redis.multiExec(dels as any);
+    await r.multiExec(dels as any);
   }
-  await redis.del(REDIS_AGENTS_LIST_KEY);
+  await r.del(REDIS_AGENTS_LIST_KEY);
 }
 
 // -------------------- File-backed store (logs/decisions/outbox + fallback agents) --------------------
@@ -265,7 +266,7 @@ export async function pushOutbox(msg: OutboxMessage): Promise<OutboxMessage> {
   return msg;
 }
 
-// ----- Agents (Redis-backed when available) -----
+// ----- Agents (r-backed when available) -----
 export async function listAgents(): Promise<Agent[]> {
   if (USE_REDIS) return await redisListAgents();
   return store.agents;
