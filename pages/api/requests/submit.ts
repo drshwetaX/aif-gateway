@@ -23,6 +23,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 // lib/redis.ts
 import { Redis } from "@upstash/redis";
+const key = `request:${envelope.request_id}`;
+
+await redis.set(key, JSON.stringify(envelope)); // optionally add TTL below
+// await redis.set(key, JSON.stringify(envelope), { ex: 60 * 60 * 24 }); // Upstash-style
+// OR: await redis.set(key, JSON.stringify(envelope), "EX", 60 * 60 * 24); // ioredis/node-redis style
 
 export const redis = Redis.fromEnv();
  // adjust path if needed
