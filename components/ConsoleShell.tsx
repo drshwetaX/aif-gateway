@@ -7,6 +7,7 @@ type Item = { href: string; label: string };
 
 const NAV: Item[] = [
   { href: "/console", label: "Home" },
+  { href: "/console/platform", label: "Platform" },
   { href: "/console/registry", label: "Agent Registry" },
   { href: "/console/agents", label: "Agent Monitoring" },
   { href: "/console/logs", label: "Logs" },
