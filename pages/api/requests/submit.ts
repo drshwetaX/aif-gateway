@@ -21,7 +21,11 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { redis } from "../../../lib/redis"; // adjust path if needed
+// lib/redis.ts
+import { Redis } from "@upstash/redis";
+
+export const redis = Redis.fromEnv();
+ // adjust path if needed
 
 // Redis keys (keep consistent across planes)
 const STREAM_REQUESTS = "aif:requests";
