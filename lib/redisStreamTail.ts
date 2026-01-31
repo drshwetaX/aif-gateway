@@ -18,19 +18,28 @@
 
 import { redis } from "./redis";
 
-export async function tailStream(stream: string, limit: number) {
-  const n = Math.max(1, Math.min(500, Number(limit || 50)));
-  // XREVRANGE stream + - COUNT n (latest first)
-  const rows = await redis.xrevrange(stream, "+", "-", "COUNT", n);
+type StreamEntryFields = Record<string, any>;
+type StreamRangeResult = Record<string, StreamEntryFields>;
 
-  // rows: [[id, [k1,v1,k2,v2...]], ...]
-  return rows.map(([id, kv]: any) => {
-    const obj: Record<string, any> = { id };
-    for (let i = 0; i < kv.length; i += 2) obj[kv[i]] = kv[i + 1];
+export async function tailStream(stream: string, limit?: number) {
+  const n = Math.max(1, Math.min(500, Number(limit ?? 50)));
+
+  // Upstash TS SDK: xrevrange(key, end, start, count?)
+  const result = (await redis.xrevrange(stream, "+", "-", n)) as StreamRangeResult;
+
+  // result shape: { [id]: { field1: value1, ... }, ... } (latest first)
+  return Object.entries(result).map(([id, fields]) => {
+    const obj: Record<string, any> = { id, ...(fields || {}) };
+
     // Try to parse payload if present
     if (typeof obj.payload === "string") {
-      try { obj.payload = JSON.parse(obj.payload); } catch {}
+      try {
+        obj.payload = JSON.parse(obj.payload);
+      } catch {
+        // keep as string
+      }
     }
+
     return obj;
   });
 }
