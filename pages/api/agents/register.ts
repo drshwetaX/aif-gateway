@@ -92,10 +92,24 @@ function explainTiering(intent: AgentIntent, finalTier: Tier) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  if (req.method === "OPTIONS") {
+    res.setHeader("Allow", ["POST", "OPTIONS"]);
+    return res.status(200).end();
   }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST", "OPTIONS"]);
+    return res.status(405).json({
+      ok: false,
+      error: "Method not allowed",
+      got: req.method,
+      url: req.url,
+    });
+  }
+
+  // ...rest of your code
+}
+
 
   // Body lives ONLY here (per-request), not at top-level
   const body = (req.body ?? {}) as any;
