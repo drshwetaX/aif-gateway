@@ -63,7 +63,7 @@ const PUBLIC_PATHS = [
 ];
 
 export function middleware(request: NextRequest) {
-   console.log("[middleware]", req.method, req.nextUrl.pathname);
+   console.log("[middleware]", request.method, request.nextUrl.pathname);
 
   if (BYPASS_LOGIN) return NextResponse.next();
 
