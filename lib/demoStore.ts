@@ -130,7 +130,7 @@ async function redisListAgents(): Promise<Agent[]> {
 
   const keys = ids.map((id) => redisAgentKey(id));
 
-  // Upstash supports MGET; depending on version it can be r.mget(keys) or r.mget(...keys)
+  // Upstash supports MGET; depending on client version it can be mget(keys) or mget(...keys)
   let raws: Array<string | null> = [];
   try {
     const res = (await (r as any).mget(keys)) as Array<string | null>;
@@ -189,7 +189,6 @@ async function redisClearAgents(): Promise<void> {
     | null;
 
   if (ids?.length) {
-    // delete each agent key
     await Promise.all(ids.map((id) => r.del(redisAgentKey(id))));
   }
 
@@ -197,10 +196,12 @@ async function redisClearAgents(): Promise<void> {
 }
 
 // -------------------- File-backed store (logs/decisions/outbox + fallback agents) --------------------
+// ⚠️ IMPORTANT: On serverless, never touch filesystem when Redis is enabled.
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "demoStore.json");
 
 function ensureFile() {
+  if (USE_REDIS) return; // ✅ do nothing when Redis is enabled
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) {
     const initial: PersistedStore = { agents: [], logs: [], decisions: [], outbox: [] };
@@ -209,6 +210,11 @@ function ensureFile() {
 }
 
 function readStore(): PersistedStore {
+  if (USE_REDIS) {
+    // ✅ never read from disk in Redis mode
+    return { agents: [], logs: [], decisions: [], outbox: [] };
+  }
+
   ensureFile();
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf8");
@@ -228,6 +234,7 @@ function readStore(): PersistedStore {
 
 let writeChain: Promise<void> = Promise.resolve();
 function writeStore(next: PersistedStore): Promise<void> {
+  if (USE_REDIS) return Promise.resolve(); // ✅ never write to disk in Redis mode
   ensureFile();
   writeChain = writeChain.then(async () => {
     await fs.promises.writeFile(DATA_FILE, JSON.stringify(next, null, 2), "utf8");
@@ -237,7 +244,14 @@ function writeStore(next: PersistedStore): Promise<void> {
 
 // In-process cache
 const g = globalThis as any;
-if (!g.__DEMO_STORE_PERSIST__) g.__DEMO_STORE_PERSIST__ = readStore();
+
+// ✅ Critical fix: do NOT call readStore() at import time when Redis is enabled
+if (!g.__DEMO_STORE_PERSIST__) {
+  g.__DEMO_STORE_PERSIST__ = USE_REDIS
+    ? ({ agents: [], logs: [], decisions: [], outbox: [] } as PersistedStore)
+    : readStore();
+}
+
 const store = g.__DEMO_STORE_PERSIST__ as PersistedStore;
 
 // ----- Logs -----
