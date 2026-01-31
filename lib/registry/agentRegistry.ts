@@ -1,4 +1,4 @@
-/**
+/**  NOTE: Not wired in demo. Production CMDB - ledger-backed registry.
  * Author: Dr Shweta Shah
  * Date: 2026-01-27
  * Purpose: Agent registry for demo. In production this maps to CMDB/asset registry.
