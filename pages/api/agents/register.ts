@@ -108,8 +108,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // ...rest of your code
-}
-
 
   // Body lives ONLY here (per-request), not at top-level
   const body = (req.body ?? {}) as any;
