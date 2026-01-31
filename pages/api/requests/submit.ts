@@ -93,28 +93,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // ---- Enqueue to Redis stream ----
     // Upstash supports Redis Streams; fields must be stringable.
-    await redis.xadd(
-      STREAM_REQUESTS,
-      "*",
-      "request_id",
-      envelope.request_id,
-      "agent_id",
-      envelope.agent_id,
-      "action",
-      envelope.action,
-      "system",
-      envelope.system,
-      "dataSensitivity",
-      envelope.dataSensitivity,
-      "received_at",
-      envelope.received_at,
-      "source",
-      envelope.source,
-      "version",
-      envelope.version,
-      "payload",
-      JSON.stringify(envelope.payload)
-    );
+    await redis.xadd(STREAM_REQUESTS, "*", {
+  request_id: envelope.request_id,
+  agent_id: envelope.agent_id,
+  action: envelope.action,
+  system: envelope.system,
+  dataSensitivity: envelope.dataSensitivity,
+  received_at: envelope.received_at,
+  source: envelope.source,
+  version: envelope.version,
+  payload: JSON.stringify(envelope.payload),
+});
+
 
     // ---- Return "accepted" (async platform behavior) ----
     return res.status(202).json({
