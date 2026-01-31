@@ -1,31 +1,59 @@
 /**
- * ---------------------------------------------------------------------------
  * Author: Shweta Shah
- * Purpose:
- *   Monitoring plane endpoint: returns audit events from Redis
- *   so the gateway UI can display a trace of platform actions.
- *
- * Dependencies:
- *   - tailStream(): lib/redisStreamTail
- *   - Redis stream: aif:audit
- *
- * When is this file called?
- *   - Called by UI:
- *       GET /api/redis/audit?limit=100
- * ---------------------------------------------------------------------------
+ * Purpose: Read latest audit events from Redis stream for Platform UI.
+ * Endpoint: GET /api/redis/audit?limit=100
  */
-
 import type { NextApiRequest, NextApiResponse } from "next";
-import { tailStream } from "../../../lib/redisStreamTail";
+import { getRedis } from "@/lib/redis";
+
+const REDIS_PREFIX = process.env.AIF_REDIS_PREFIX || "aif";
+const KEY = `${REDIS_PREFIX}:audit`;
+
+function normalizeEntries(entries: any[]) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((row) => {
+      const id = row?.[0];
+      const fields = row?.[1] || {};
+      // try to parse JSON blobs if present
+      const controls = fields.controls ? safeJson(fields.controls) : undefined;
+      const intent = fields.intent ? safeJson(fields.intent) : undefined;
+      return { id, ...fields, ...(controls ? { controls } : {}), ...(intent ? { intent } : {}) };
+    })
+    .filter(Boolean);
+}
+
+function safeJson(v: any) {
+  try {
+    return typeof v === "string" ? JSON.parse(v) : v;
+  } catch {
+    return v;
+  }
+}
+
+async function xreadLatest(redis: any, key: string, limit: number) {
+  try {
+    const rows = await redis.xrevrange(key, "+", "-", { count: limit });
+    return normalizeEntries(rows);
+  } catch {
+    const rows = await redis.xrevrange(key, "+", "-", limit);
+    return normalizeEntries(rows);
+  }
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+  if (req.method !== "GET") {
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
 
   try {
-    const limit = Number(req.query.limit ?? 100);
-    const items = await tailStream("aif:audit", limit);
-    return res.status(200).json({ stream: "aif:audit", count: items.length, items });
+    const redis = getRedis();
+    const items = await xreadLatest(redis as any, KEY, limit);
+    return res.status(200).json({ stream: KEY, count: items.length, items });
   } catch (e: any) {
-    return res.status(503).json({ error: "Redis unavailable", detail: String(e?.message || e) });
+    return res.status(500).json({ stream: KEY, count: 0, items: [], error: "read_failed", detail: e?.message || String(e) });
   }
 }
