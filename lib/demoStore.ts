@@ -117,7 +117,6 @@ const REDIS_URL =
   "";
 
 const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
   process.env.UPSTASH_REDIS_REST_TOKEN || // (kept intentionally if you only use REST_TOKEN)
   process.env.UPSTASH_REDIS_TOKEN ||
   process.env.AIF_REDIS_REST_TOKEN ||
@@ -125,7 +124,7 @@ const REDIS_TOKEN =
   "";
 
 const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
-
+const REDIS_PREFIX = process.env.AIF_REDIS_PREFIX || "aif";
 const REDIS_AGENTS_LIST_KEY = `${REDIS_PREFIX}:agents:list`;
 const redisAgentKey = (id: string) => `${REDIS_PREFIX}:agents:${id}`;
 
