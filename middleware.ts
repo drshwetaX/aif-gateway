@@ -15,6 +15,7 @@ const PUBLIC = new Set([
   "/login",
   "/api/auth/login",
   "/api/health",
+  "/api/agents/list",
 ]);
 
 const SERVICE_PATHS = [
