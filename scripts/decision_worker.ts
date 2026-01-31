@@ -14,10 +14,6 @@
  *   - Run as a long-lived worker:
  *       node scripts/decision_worker.ts
  *   - Consumes Redis stream entries continuously (blocking reads).
- *
- * Notes:
- *   - Start with a simple hard-coded decision to prove plumbing.
- *   - Then plug in your real evaluate/policy logic.
  * ---------------------------------------------------------------------------
  */
 
@@ -55,11 +51,10 @@ function kvArrayToObject(kv: any[]): Record<string, string> {
 
 async function ensureGroup() {
   try {
-    // Universal form (works across @upstash/redis versions)
+    // NOTE: your redis.exec expects ONE argument (single array command)
     // XGROUP CREATE aif:requests policy-engine $ MKSTREAM
-    await redis.exec("XGROUP", ["CREATE", STREAM_REQUESTS, GROUP, "$", "MKSTREAM"]);
+    await redis.exec(["XGROUP", "CREATE", STREAM_REQUESTS, GROUP, "$", "MKSTREAM"]);
   } catch (e: any) {
-    // BUSYGROUP means it already exists — safe to ignore
     if (!String(e?.message || "").includes("BUSYGROUP")) throw e;
   }
 }
@@ -69,9 +64,9 @@ async function main() {
   console.log(`[decision_worker] listening on stream=${STREAM_REQUESTS} group=${GROUP} consumer=${CONSUMER}`);
 
   while (true) {
-    // Universal blocking read (avoid signature mismatch in older Upstash clients)
     // XREADGROUP GROUP policy-engine worker-1 COUNT 10 BLOCK 5000 STREAMS aif:requests >
-    const resp = await redis.exec("XREADGROUP", [
+    const resp = await redis.exec([
+      "XREADGROUP",
       "GROUP",
       GROUP,
       CONSUMER,
@@ -94,7 +89,7 @@ async function main() {
         const request_id = obj.request_id || "(missing)";
         const decision = decide(obj);
 
-        // Emit decision (Upstash-friendly object form)
+        // Emit decision (object form)
         await redis.xadd(STREAM_DECISIONS, "*", {
           request_id,
           decision: decision.decision,
@@ -103,7 +98,7 @@ async function main() {
           decided_at: new Date().toISOString(),
         });
 
-        // Emit audit (Upstash-friendly object form)
+        // Emit audit (object form)
         await redis.xadd(STREAM_AUDIT, "*", {
           event: "decision_made",
           request_id,
@@ -114,8 +109,8 @@ async function main() {
           ts: new Date().toISOString(),
         });
 
-        // Ack message (universal form)
-        await redis.exec("XACK", [STREAM_REQUESTS, GROUP, id]);
+        // Ack message
+        await redis.exec(["XACK", STREAM_REQUESTS, GROUP, String(id)]);
       }
     }
   }
