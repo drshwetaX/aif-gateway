@@ -1,17 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { listAgents } from "@/lib/demoStore";
 
+/**
+ * ---------------------------------------------------------------------------
+ * Author: Shweta Shah
+ * Purpose:
+ *   Returns all registered agents (Redis-backed via demoStore when Redis is enabled).
+ *
+ * Dependencies:
+ *   - listAgents() from lib/demoStore
+ *
+ * When is this file called?
+ *   - GET /api/agents/list
+ * ---------------------------------------------------------------------------
+ */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const agents = await listAgents();import type { NextApiRequest, NextApiResponse } from "next";
-import { listAgents } from "@/lib/demoStore";
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Always JSON
+  // Always JSON + no cache (helps debugging + Safari)
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
 
@@ -24,14 +28,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const agents = await listAgents();
     return res.status(200).json({ ok: true, agents });
   } catch (e: any) {
-    // If anything explodes, you still see JSON
     return res.status(500).json({
       ok: false,
       error: "agents_list_failed",
       detail: e?.message || String(e),
     });
   }
-}
-
-  return res.status(200).json({ ok: true, agents });
 }
