@@ -107,11 +107,25 @@ type PersistedStore = {
 };
 
 // If Upstash env vars are present, we treat Redis as the source of truth for agents.
-const USE_REDIS = Boolean(
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-);
+// If Upstash env vars are present, we treat Redis as the source of truth for agents.
+// ✅ Robust env detection (covers common naming differences between local/prod)
+const REDIS_URL =
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.UPSTASH_REDIS_URL ||
+  process.env.AIF_REDIS_REST_URL ||
+  process.env.REDIS_REST_URL ||
+  "";
 
-const REDIS_PREFIX = process.env.AIF_REDIS_PREFIX || "aif";
+const REDIS_TOKEN =
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN || // (kept intentionally if you only use REST_TOKEN)
+  process.env.UPSTASH_REDIS_TOKEN ||
+  process.env.AIF_REDIS_REST_TOKEN ||
+  process.env.REDIS_REST_TOKEN ||
+  "";
+
+const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
+
 const REDIS_AGENTS_LIST_KEY = `${REDIS_PREFIX}:agents:list`;
 const redisAgentKey = (id: string) => `${REDIS_PREFIX}:agents:${id}`;
 
