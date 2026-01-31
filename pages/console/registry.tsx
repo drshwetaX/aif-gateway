@@ -55,15 +55,33 @@ export default function RegisterAgentPage() {
   const [chatInput, setChatInput] = useState("");
 
   async function refreshRegistry() {
-    setLoadingAgents(true);
-    try {
-      const r = await fetch("/api/agents/list");
-      const j = await r.json().catch(() => ({}));
-      setAgents(j?.agents || []);
-    } finally {
-      setLoadingAgents(false);
+  setLoadingAgents(true);
+  try {
+    const r = await fetch("/api/agents/list", {
+      method: "GET",
+      credentials: "include",          // ✅ force cookies (Safari-safe)
+      cache: "no-store",               // ✅ avoid stale cache
+      headers: { Accept: "application/json" },
+    });
+
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) {
+      const text = await r.text().catch(() => "");
+      throw new Error(`Expected JSON from /api/agents/list but got ${ct}. First chars: ${text.slice(0, 80)}`);
     }
+
+    const j = await r.json();
+    if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+
+    setAgents(j?.agents || []);
+  } catch (e: any) {
+    setErr(e?.message || "Failed to load agents"); // ✅ show error banner
+    setAgents([]);
+  } finally {
+    setLoadingAgents(false);
   }
+}
+
 
   useEffect(() => {
     refreshRegistry();
