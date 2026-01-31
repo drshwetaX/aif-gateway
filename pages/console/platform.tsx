@@ -61,7 +61,7 @@ async function fetchJson(url: string): Promise<StreamResp> {
 export default function PlatformDashboard() {
   const [loading, setLoading] = useState(false);
   const [auto, setAuto] = useState(true);
-
+  const [agents, setAgents] = useState<StreamResp>({ stream: "aif:agents:*", count: 0, items: [] });
   const [reqs, setReqs] = useState<StreamResp>({ stream: "aif:requests", count: 0, items: [] });
   const [decs, setDecs] = useState<StreamResp>({ stream: "aif:decisions", count: 0, items: [] });
   const [audit, setAudit] = useState<StreamResp>({ stream: "aif:audit", count: 0, items: [] });
@@ -73,10 +73,12 @@ export default function PlatformDashboard() {
         fetchJson("/api/redis/requests?limit=50"),
         fetchJson("/api/redis/decisions?limit=50"),
         fetchJson("/api/redis/audit?limit=100"),
+        fetchJson("/api/redis/agents?limit=200"),
       ]);
       setReqs(r);
       setDecs(d);
       setAudit(a);
+      setAgents(g);
     } finally {
       setLoading(false);
     }
@@ -151,6 +153,7 @@ export default function PlatformDashboard() {
           ["Requests (latest)", reqs.items.length],
           ["Decisions (latest)", decs.items.length],
           ["Audit events (latest)", audit.items.length],
+          ["Agents (latest)", agents.items.length],
           ["ALLOW", counts.allow],
           ["DENY", counts.deny],
           ["PENDING", counts.pending],
@@ -166,7 +169,53 @@ export default function PlatformDashboard() {
         <ErrorBanner r={reqs} />
         <ErrorBanner r={decs} />
         <ErrorBanner r={audit} />
+        <ErrorBanner r={agents} />
       </div>
+{/* Agents */}
+<section style={{ marginTop: 22 }}>
+  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+    <h2 style={{ margin: 0 }}>Agents</h2>
+    <div style={{ opacity: 0.7, fontSize: 12 }}>aif:agents:list</div>
+  </div>
+
+  <div style={{ overflowX: "auto", marginTop: 10 }}>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+          <th style={{ padding: 8 }}>created_at</th>
+          <th style={{ padding: 8 }}>agent_id</th>
+          <th style={{ padding: 8 }}>name</th>
+          <th style={{ padding: 8 }}>owner</th>
+          <th style={{ padding: 8 }}>tier</th>
+          <th style={{ padding: 8 }}>status</th>
+          <th style={{ padding: 8 }}>env</th>
+          <th style={{ padding: 8 }}>stage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {agents.items.map((x: any, idx: number) => (
+          <tr key={x.id || x.agent_id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
+            <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.created_at)}</td>
+            <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.id || x.agent_id, 48)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.name, 48)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.owner, 48)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.tier || x.risk_tier, 8)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.status, 16)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.env, 12)}</td>
+            <td style={{ padding: 8 }}>{safeStr(x.stage, 12)}</td>
+          </tr>
+        ))}
+        {!agents.items.length && (
+          <tr>
+            <td style={{ padding: 12, opacity: 0.7 }} colSpan={8}>
+              No agents found yet.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</section>
 
       {/* Requests */}
       <section style={{ marginTop: 18 }}>
