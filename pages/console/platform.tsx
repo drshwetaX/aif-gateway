@@ -69,7 +69,7 @@ export default function PlatformDashboard() {
   async function refresh() {
     setLoading(true);
     try {
-      const [r, d, a] = await Promise.all([
+      const [r, d, a,g] = await Promise.all([
         fetchJson("/api/redis/requests?limit=50"),
         fetchJson("/api/redis/decisions?limit=50"),
         fetchJson("/api/redis/audit?limit=100"),
