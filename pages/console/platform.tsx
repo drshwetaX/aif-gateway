@@ -10,7 +10,6 @@
  *
  * Dependencies:
  *   - React (useEffect/useState)
- *   - ConsoleShell component: components/ConsoleShell (existing layout)
  *   - REST endpoints (must exist):
  *       GET /api/redis/requests?limit=50
  *       GET /api/redis/decisions?limit=50
@@ -23,7 +22,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import ConsoleShell from "@/components/ConsoleShell";
 
 type StreamResp = {
   stream: string;
@@ -35,9 +33,7 @@ type StreamResp = {
 
 function fmtTs(v: any) {
   if (!v) return "";
-  // common fields we emit: received_at / decided_at / ts
   const s = String(v);
-  // if it’s ISO it’s already readable; shorten a bit
   return s.length > 19 ? s.slice(0, 19).replace("T", " ") : s;
 }
 
@@ -49,6 +45,7 @@ function safeStr(v: any, max = 64) {
 async function fetchJson(url: string): Promise<StreamResp> {
   const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
   const data = (await res.json().catch(() => ({}))) as any;
+
   if (!res.ok) {
     return {
       stream: data?.stream || "",
@@ -85,13 +82,11 @@ export default function PlatformDashboard() {
     }
   }
 
-  // Initial load
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-refresh
   useEffect(() => {
     if (!auto) return;
     const t = setInterval(() => refresh(), 10_000);
@@ -121,203 +116,185 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <ConsoleShell>
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>Platform Dashboard</div>
-            <div style={{ opacity: 0.8, marginTop: 4 }}>
-              Live view of requests, decisions, and audit events (read-only).
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={auto}
-                onChange={(e) => setAuto(e.target.checked)}
-              />
-              Auto-refresh (10s)
-            </label>
-
-            <button
-              onClick={refresh}
-              disabled={loading}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: "1px solid #ddd",
-                background: loading ? "#f6f6f6" : "white",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontWeight: 600,
-              }}
-            >
-              {loading ? "Refreshing…" : "Refresh"}
-            </button>
-          </div>
+    <div style={{ padding: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Platform Dashboard</div>
+          <div style={{ opacity: 0.8, marginTop: 4 }}>Live view of requests, decisions, and audit events (read-only).</div>
         </div>
 
-        {/* Summary */}
-        <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
-          {[
-            ["Requests (latest)", reqs.items.length],
-            ["Decisions (latest)", decs.items.length],
-            ["Audit events (latest)", audit.items.length],
-            ["ALLOW", counts.allow],
-            ["DENY", counts.deny],
-            ["PENDING", counts.pending],
-          ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid #e6e6e6",
-                minWidth: 160,
-              }}
-            >
-              <div style={{ fontSize: 12, opacity: 0.75 }}>{label}</div>
-              <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{String(value)}</div>
-            </div>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+            Auto-refresh (10s)
+          </label>
+
+          <button
+            onClick={refresh}
+            disabled={loading}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: "1px solid #ddd",
+              background: loading ? "#f6f6f6" : "white",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
-
-        {/* Errors */}
-        <div style={{ marginTop: 16 }}>
-          <ErrorBanner r={reqs} />
-          <ErrorBanner r={decs} />
-          <ErrorBanner r={audit} />
-        </div>
-
-        {/* Requests */}
-        <section style={{ marginTop: 18 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Requests</h2>
-            <div style={{ opacity: 0.7, fontSize: 12 }}>{reqs.stream}</div>
-          </div>
-
-          <div style={{ overflowX: "auto", marginTop: 10 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                  <th style={{ padding: 8 }}>Time</th>
-                  <th style={{ padding: 8 }}>request_id</th>
-                  <th style={{ padding: 8 }}>agent_id</th>
-                  <th style={{ padding: 8 }}>action</th>
-                  <th style={{ padding: 8 }}>system</th>
-                  <th style={{ padding: 8 }}>sensitivity</th>
-                  <th style={{ padding: 8 }}>source</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reqs.items.map((x, idx) => (
-                  <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                    <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.received_at)}</td>
-                    <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.agent_id, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.action, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.system, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.dataSensitivity, 16)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.source, 16)}</td>
-                  </tr>
-                ))}
-                {!reqs.items.length && (
-                  <tr>
-                    <td style={{ padding: 12, opacity: 0.7 }} colSpan={7}>
-                      No request events found yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Decisions */}
-        <section style={{ marginTop: 22 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Decisions</h2>
-            <div style={{ opacity: 0.7, fontSize: 12 }}>{decs.stream}</div>
-          </div>
-
-          <div style={{ overflowX: "auto", marginTop: 10 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                  <th style={{ padding: 8 }}>Time</th>
-                  <th style={{ padding: 8 }}>request_id</th>
-                  <th style={{ padding: 8 }}>decision</th>
-                  <th style={{ padding: 8 }}>reason</th>
-                  <th style={{ padding: 8 }}>policy_version</th>
-                </tr>
-              </thead>
-              <tbody>
-                {decs.items.map((x, idx) => (
-                  <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                    <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.decided_at)}</td>
-                    <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
-                    <td style={{ padding: 8, fontWeight: 700 }}>{safeStr(x.decision, 24)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.reason, 120)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.policy_version, 24)}</td>
-                  </tr>
-                ))}
-                {!decs.items.length && (
-                  <tr>
-                    <td style={{ padding: 12, opacity: 0.7 }} colSpan={5}>
-                      No decision events found yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Audit */}
-        <section style={{ marginTop: 22 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Audit</h2>
-            <div style={{ opacity: 0.7, fontSize: 12 }}>{audit.stream}</div>
-          </div>
-
-          <div style={{ overflowX: "auto", marginTop: 10 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                  <th style={{ padding: 8 }}>Time</th>
-                  <th style={{ padding: 8 }}>event</th>
-                  <th style={{ padding: 8 }}>request_id</th>
-                  <th style={{ padding: 8 }}>agent_id</th>
-                  <th style={{ padding: 8 }}>action</th>
-                  <th style={{ padding: 8 }}>system</th>
-                  <th style={{ padding: 8 }}>decision</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.items.map((x, idx) => (
-                  <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                    <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.ts)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.event, 36)}</td>
-                    <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.agent_id, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.action, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.system, 32)}</td>
-                    <td style={{ padding: 8 }}>{safeStr(x.decision, 24)}</td>
-                  </tr>
-                ))}
-                {!audit.items.length && (
-                  <tr>
-                    <td style={{ padding: 12, opacity: 0.7 }} colSpan={7}>
-                      No audit events found yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
       </div>
-    </ConsoleShell>
+
+      <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+        {[
+          ["Requests (latest)", reqs.items.length],
+          ["Decisions (latest)", decs.items.length],
+          ["Audit events (latest)", audit.items.length],
+          ["ALLOW", counts.allow],
+          ["DENY", counts.deny],
+          ["PENDING", counts.pending],
+        ].map(([label, value]) => (
+          <div key={String(label)} style={{ padding: 12, borderRadius: 12, border: "1px solid #e6e6e6", minWidth: 160 }}>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>{label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{String(value)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <ErrorBanner r={reqs} />
+        <ErrorBanner r={decs} />
+        <ErrorBanner r={audit} />
+      </div>
+
+      {/* Requests */}
+      <section style={{ marginTop: 18 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0 }}>Requests</h2>
+          <div style={{ opacity: 0.7, fontSize: 12 }}>{reqs.stream}</div>
+        </div>
+
+        <div style={{ overflowX: "auto", marginTop: 10 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                <th style={{ padding: 8 }}>Time</th>
+                <th style={{ padding: 8 }}>request_id</th>
+                <th style={{ padding: 8 }}>agent_id</th>
+                <th style={{ padding: 8 }}>action</th>
+                <th style={{ padding: 8 }}>system</th>
+                <th style={{ padding: 8 }}>sensitivity</th>
+                <th style={{ padding: 8 }}>source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reqs.items.map((x, idx) => (
+                <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.received_at)}</td>
+                  <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.agent_id, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.action, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.system, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.dataSensitivity, 16)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.source, 16)}</td>
+                </tr>
+              ))}
+              {!reqs.items.length && (
+                <tr>
+                  <td style={{ padding: 12, opacity: 0.7 }} colSpan={7}>
+                    No request events found yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Decisions */}
+      <section style={{ marginTop: 22 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0 }}>Decisions</h2>
+          <div style={{ opacity: 0.7, fontSize: 12 }}>{decs.stream}</div>
+        </div>
+
+        <div style={{ overflowX: "auto", marginTop: 10 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                <th style={{ padding: 8 }}>Time</th>
+                <th style={{ padding: 8 }}>request_id</th>
+                <th style={{ padding: 8 }}>decision</th>
+                <th style={{ padding: 8 }}>reason</th>
+                <th style={{ padding: 8 }}>policy_version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {decs.items.map((x, idx) => (
+                <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.decided_at)}</td>
+                  <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
+                  <td style={{ padding: 8, fontWeight: 700 }}>{safeStr(x.decision, 24)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.reason, 120)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.policy_version, 24)}</td>
+                </tr>
+              ))}
+              {!decs.items.length && (
+                <tr>
+                  <td style={{ padding: 12, opacity: 0.7 }} colSpan={5}>
+                    No decision events found yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Audit */}
+      <section style={{ marginTop: 22 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0 }}>Audit</h2>
+          <div style={{ opacity: 0.7, fontSize: 12 }}>{audit.stream}</div>
+        </div>
+
+        <div style={{ overflowX: "auto", marginTop: 10 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                <th style={{ padding: 8 }}>Time</th>
+                <th style={{ padding: 8 }}>event</th>
+                <th style={{ padding: 8 }}>request_id</th>
+                <th style={{ padding: 8 }}>agent_id</th>
+                <th style={{ padding: 8 }}>action</th>
+                <th style={{ padding: 8 }}>system</th>
+                <th style={{ padding: 8 }}>decision</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audit.items.map((x, idx) => (
+                <tr key={x.id || idx} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>{fmtTs(x.ts)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.event, 36)}</td>
+                  <td style={{ padding: 8, fontFamily: "monospace" }}>{safeStr(x.request_id, 40)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.agent_id, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.action, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.system, 32)}</td>
+                  <td style={{ padding: 8 }}>{safeStr(x.decision, 24)}</td>
+                </tr>
+              ))}
+              {!audit.items.length && (
+                <tr>
+                  <td style={{ padding: 12, opacity: 0.7 }} colSpan={7}>
+                    No audit events found yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
