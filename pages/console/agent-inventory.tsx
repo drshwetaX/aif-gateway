@@ -180,12 +180,13 @@ export default function AgentInventoryPage() {
   }
 
   return (
-    <ConsoleShell title="AgentInventory" subtitle="/console/agent-inventory">
+    <ConsoleShell title="AgentInventory">
       <div className="px-8 py-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-lg font-semibold">AgentInventory</div>
-            <div className="mt-1 text-sm text-zinc-600">
+            <div className="mt-1 text-xs text-zinc-500">/console/agent-inventory</div>
+            <div className="mt-2 text-sm text-zinc-600">
               Loads Redis streams + agent registry on page load. If you see “Non-JSON”, middleware likely redirected to
               /login.
             </div>
@@ -217,10 +218,7 @@ export default function AgentInventoryPage() {
             ["DENY", counts.deny],
             ["PENDING", counts.pending],
           ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              className="min-w-[160px] rounded-xl border border-zinc-200 bg-white p-3"
-            >
+            <div key={String(label)} className="min-w-[160px] rounded-xl border border-zinc-200 bg-white p-3">
               <div className="text-xs text-zinc-500">{label}</div>
               <div className="mt-1 text-xl font-extrabold">{String(value)}</div>
             </div>
@@ -254,7 +252,6 @@ export default function AgentInventoryPage() {
             <table className="w-full border-collapse text-xs">
               <thead className="bg-zinc-50">
                 <tr className="text-left">
-                  {/* top-level */}
                   <th className="p-2">id</th>
                   <th className="p-2">name</th>
                   <th className="p-2">owner</th>
@@ -269,17 +266,14 @@ export default function AgentInventoryPage() {
                   <th className="p-2">review_notes</th>
                   <th className="p-2">problem_statement</th>
 
-                  {/* intent */}
                   <th className="p-2">intent.actions</th>
                   <th className="p-2">intent.systems</th>
                   <th className="p-2">intent.dataSensitivity</th>
                   <th className="p-2">intent.crossBorder</th>
 
-                  {/* tier + policy */}
                   <th className="p-2">tier</th>
                   <th className="p-2">policy_version</th>
 
-                  {/* controls */}
                   <th className="p-2">controls.logging</th>
                   <th className="p-2">controls.piiRedaction</th>
                   <th className="p-2">controls.humanInLoop</th>
@@ -289,15 +283,12 @@ export default function AgentInventoryPage() {
                   <th className="p-2">controls.sandboxOnly</th>
                   <th className="p-2">controls.killSwitchRequired</th>
 
-                  {/* allowed_tools */}
                   <th className="p-2">allowed_tools</th>
 
-                  {/* tiering_explain */}
                   <th className="p-2">tiering.finalTier</th>
                   <th className="p-2">tiering.matched_rule_ids</th>
                   <th className="p-2">tiering.matched_rules</th>
 
-                  {/* review */}
                   <th className="p-2">review.decision</th>
                   <th className="p-2">review.decidedAt</th>
                   <th className="p-2">review.decidedBy</th>
@@ -315,9 +306,11 @@ export default function AgentInventoryPage() {
                   const intentActions = Array.isArray(intent.actions) ? intent.actions.join(", ") : "";
                   const intentSystems = Array.isArray(intent.systems) ? intent.systems.join(", ") : "";
                   const allowedTools = Array.isArray(a?.allowed_tools) ? a.allowed_tools.join(", ") : "";
+
                   const matchedRuleIds = Array.isArray(tiering.matched_rule_ids)
                     ? tiering.matched_rule_ids.join(", ")
                     : "";
+
                   const matchedRules =
                     Array.isArray(tiering.matched_rules) && tiering.matched_rules.length
                       ? JSON.stringify(tiering.matched_rules)
@@ -325,8 +318,7 @@ export default function AgentInventoryPage() {
 
                   return (
                     <tr key={a.id || idx} className="border-t border-zinc-100 align-top">
-                      {/* top-level */}
-                      <td className="p-2 font-mono">{safeStr(a.id, 120)}</td>
+                      <td className="p-2 font-mono">{safeStr(a.id, 140)}</td>
                       <td className="p-2">{safeStr(a.name, 80)}</td>
                       <td className="p-2">{safeStr(a.owner, 80)}</td>
                       <td className="p-2">{safeStr(a.status, 24)}</td>
@@ -340,17 +332,14 @@ export default function AgentInventoryPage() {
                       <td className="p-2">{safeStr(a.review_notes, 120)}</td>
                       <td className="p-2">{safeStr(a.problem_statement, 200)}</td>
 
-                      {/* intent */}
                       <td className="p-2">{safeStr(intentActions, 120)}</td>
                       <td className="p-2">{safeStr(intentSystems, 120)}</td>
                       <td className="p-2">{safeStr(intent.dataSensitivity, 24)}</td>
                       <td className="p-2">{String(!!intent.crossBorder)}</td>
 
-                      {/* tier + policy */}
                       <td className="p-2 font-semibold">{safeStr(a.tier, 8)}</td>
                       <td className="p-2">{safeStr(a.policy_version, 64)}</td>
 
-                      {/* controls */}
                       <td className="p-2">{String(!!controls.logging)}</td>
                       <td className="p-2">{String(!!controls.piiRedaction)}</td>
                       <td className="p-2">{String(!!controls.humanInLoop)}</td>
@@ -360,12 +349,10 @@ export default function AgentInventoryPage() {
                       <td className="p-2">{String(!!controls.sandboxOnly)}</td>
                       <td className="p-2">{String(!!controls.killSwitchRequired)}</td>
 
-                      {/* allowed_tools */}
-                      <td className="p-2">{safeStr(allowedTools, 160)}</td>
+                      <td className="p-2">{safeStr(allowedTools, 200)}</td>
 
-                      {/* tiering_explain */}
                       <td className="p-2">{safeStr(tiering.finalTier, 8)}</td>
-                      <td className="p-2">{safeStr(matchedRuleIds, 160)}</td>
+                      <td className="p-2">{safeStr(matchedRuleIds, 200)}</td>
                       <td className="p-2">
                         {matchedRules ? (
                           <details>
@@ -379,7 +366,6 @@ export default function AgentInventoryPage() {
                         )}
                       </td>
 
-                      {/* review */}
                       <td className="p-2 font-semibold">{safeStr(review.decision, 16)}</td>
                       <td className="p-2 whitespace-nowrap">{fmtTs(review.decidedAt)}</td>
                       <td className="p-2">{safeStr(review.decidedBy, 80)}</td>
@@ -400,13 +386,12 @@ export default function AgentInventoryPage() {
           </div>
         </section>
 
-        {/* Requests */}
+        {/* Streams kept below so you can see platform activity too */}
         <section className="mt-8">
           <div className="flex items-baseline justify-between">
             <h2 className="m-0 text-lg font-semibold">Requests</h2>
             <div className="text-xs text-zinc-500">{reqs.stream}</div>
           </div>
-
           <div className="mt-3 overflow-x-auto rounded-xl border border-zinc-200 bg-white">
             <table className="w-full border-collapse text-xs">
               <thead className="bg-zinc-50">
@@ -432,7 +417,6 @@ export default function AgentInventoryPage() {
                     <td className="p-2">{safeStr(x.source, 24)}</td>
                   </tr>
                 ))}
-
                 {!reqs.items.length && (
                   <tr className="border-t border-zinc-100">
                     <td className="p-3 text-zinc-500" colSpan={7}>
@@ -445,13 +429,11 @@ export default function AgentInventoryPage() {
           </div>
         </section>
 
-        {/* Decisions */}
         <section className="mt-8">
           <div className="flex items-baseline justify-between">
             <h2 className="m-0 text-lg font-semibold">Decisions</h2>
             <div className="text-xs text-zinc-500">{decs.stream}</div>
           </div>
-
           <div className="mt-3 overflow-x-auto rounded-xl border border-zinc-200 bg-white">
             <table className="w-full border-collapse text-xs">
               <thead className="bg-zinc-50">
@@ -473,7 +455,6 @@ export default function AgentInventoryPage() {
                     <td className="p-2">{safeStr(x.policy_version, 48)}</td>
                   </tr>
                 ))}
-
                 {!decs.items.length && (
                   <tr className="border-t border-zinc-100">
                     <td className="p-3 text-zinc-500" colSpan={5}>
@@ -486,13 +467,11 @@ export default function AgentInventoryPage() {
           </div>
         </section>
 
-        {/* Audit */}
         <section className="mt-8">
           <div className="flex items-baseline justify-between">
             <h2 className="m-0 text-lg font-semibold">Audit</h2>
             <div className="text-xs text-zinc-500">{audit.stream}</div>
           </div>
-
           <div className="mt-3 overflow-x-auto rounded-xl border border-zinc-200 bg-white">
             <table className="w-full border-collapse text-xs">
               <thead className="bg-zinc-50">
@@ -516,7 +495,6 @@ export default function AgentInventoryPage() {
                     <td className="p-2">{safeStr(x.endpoint, 60)}</td>
                   </tr>
                 ))}
-
                 {!audit.items.length && (
                   <tr className="border-t border-zinc-100">
                     <td className="p-3 text-zinc-500" colSpan={6}>
