@@ -42,16 +42,6 @@ function decide(req: Record<string, string>) {
   return { decision: "ALLOW", reason: "ok", policy_version: "v1" };
 }
 
-async function ensureGroup() {
-  try {
-    // Create a consumer group starting at the end ($ = new only; 0 = all history)
-    await redis.xgroupCreate(STREAM_REQUESTS, GROUP, "$", { mkstream: true });
-  } catch (e: any) {
-    // BUSYGROUP means it already exists — safe to ignore
-    if (!String(e?.message || "").includes("BUSYGROUP")) throw e;
-  }
-}
-
 function kvArrayToObject(kv: any[]): Record<string, string> {
   const obj: Record<string, string> = {};
   if (!Array.isArray(kv)) return obj;
@@ -63,26 +53,40 @@ function kvArrayToObject(kv: any[]): Record<string, string> {
   return obj;
 }
 
+async function ensureGroup() {
+  try {
+    // Universal form (works across @upstash/redis versions)
+    // XGROUP CREATE aif:requests policy-engine $ MKSTREAM
+    await redis.exec("XGROUP", ["CREATE", STREAM_REQUESTS, GROUP, "$", "MKSTREAM"]);
+  } catch (e: any) {
+    // BUSYGROUP means it already exists — safe to ignore
+    if (!String(e?.message || "").includes("BUSYGROUP")) throw e;
+  }
+}
+
 async function main() {
   await ensureGroup();
-
-  console.log(
-    `[decision_worker] listening on stream=${STREAM_REQUESTS} group=${GROUP} consumer=${CONSUMER}`
-  );
+  console.log(`[decision_worker] listening on stream=${STREAM_REQUESTS} group=${GROUP} consumer=${CONSUMER}`);
 
   while (true) {
-    // Block for up to 5 seconds waiting for new messages
-    // IMPORTANT: Upstash xreadgroup expects stream->id map, use ">" for new entries.
-    const resp = await redis.xreadgroup(
+    // Universal blocking read (avoid signature mismatch in older Upstash clients)
+    // XREADGROUP GROUP policy-engine worker-1 COUNT 10 BLOCK 5000 STREAMS aif:requests >
+    const resp = await redis.exec("XREADGROUP", [
+      "GROUP",
       GROUP,
       CONSUMER,
-      { [STREAM_REQUESTS]: ">" },
-      { count: 10, block: 5000 }
-    );
+      "COUNT",
+      "10",
+      "BLOCK",
+      "5000",
+      "STREAMS",
+      STREAM_REQUESTS,
+      ">",
+    ]);
 
     if (!resp) continue;
 
-    // resp format (commonly): [[streamName, [[id, [k1,v1,k2,v2...]], ...]]]
+    // resp format: [[streamName, [[id, [k1,v1,k2,v2...]], ...]]]
     for (const [, entries] of resp as any) {
       for (const [id, kv] of entries) {
         const obj = kvArrayToObject(kv);
@@ -90,7 +94,7 @@ async function main() {
         const request_id = obj.request_id || "(missing)";
         const decision = decide(obj);
 
-        // Emit decision (object form for Upstash)
+        // Emit decision (Upstash-friendly object form)
         await redis.xadd(STREAM_DECISIONS, "*", {
           request_id,
           decision: decision.decision,
@@ -99,7 +103,7 @@ async function main() {
           decided_at: new Date().toISOString(),
         });
 
-        // Emit audit (object form for Upstash)
+        // Emit audit (Upstash-friendly object form)
         await redis.xadd(STREAM_AUDIT, "*", {
           event: "decision_made",
           request_id,
@@ -110,10 +114,8 @@ async function main() {
           ts: new Date().toISOString(),
         });
 
-        // Ack message
-        await redis.xack(STREAM_REQUESTS, GROUP, id);
-        // If TS ever complains in your version, fallback:
-        // await redis.exec("XACK", [STREAM_REQUESTS, GROUP, id]);
+        // Ack message (universal form)
+        await redis.exec("XACK", [STREAM_REQUESTS, GROUP, id]);
       }
     }
   }
